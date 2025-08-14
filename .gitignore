@@ -1,0 +1,30 @@
+node_modules
+bd_scripts
+IMPLEMENTACION_DESCUENTOS.md
+IMPLEMENTACION_V4.md
+supabase/migrations
+static
+.vercelignore
+requerimientos. md
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
