@@ -9,9 +9,11 @@
     Package, 
     AlertTriangle,
     Filter,
-    X
+    X,
+    PackageCheck
   } from 'lucide-svelte';
   import ProductoModal from '$lib/components/ProductoModal.svelte';
+  import StockModal from '$lib/components/StockModal.svelte';
 
   let loading = true;
   let productos: any[] = [];
@@ -20,7 +22,9 @@
   let searchTerm = '';
   let selectedCategory: number | null = null;
   let showModal = false;
+  let showStockModal = false;
   let editingProduct: any = null;
+  let selectedProductForStock: any = null;
   let error = '';
 
   // Reactive filtering
@@ -92,6 +96,31 @@
   async function handleProductSaved() {
     showModal = false;
     editingProduct = null;
+    await loadProductos();
+  }
+
+  function openStockModal(producto: any) {
+    selectedProductForStock = producto;
+    showStockModal = true;
+  }
+
+  async function handleStockSaved(event: any) {
+    const { nuevoStock } = event.detail;
+    const productoId = selectedProductForStock?.id;
+    
+    // Actualizar el stock en la lista local
+    if (productoId) {
+      const productoIndex = productos.findIndex(p => p.id === productoId);
+      if (productoIndex !== -1) {
+        productos[productoIndex].stock = nuevoStock;
+      }
+    }
+    
+    // Cerrar modal y limpiar
+    showStockModal = false;
+    selectedProductForStock = null;
+    
+    // Recargar para asegurar sincronización
     await loadProductos();
   }
 
@@ -281,7 +310,7 @@
                       <div class="ml-4">
                         <div class="text-sm font-medium text-gray-900">{producto.nombre}</div>
                         {#if producto.codigo_barras}
-                          <div class="text-sm text-gray-500">Código: {producto.codigo_barras}</div>
+                          <div class="text-sm text-gray-500">Detalle: {producto.codigo_barras}</div>
                         {/if}
                       </div>
                     </div>
@@ -300,7 +329,13 @@
                     </div>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-gray-900">{producto.stock}</div>
+                    <button
+                      class="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors cursor-pointer"
+                      on:click={() => openStockModal(producto)}
+                      title="Click para gestionar stock"
+                    >
+                      {producto.stock}
+                    </button>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {stockStatus.class}">
@@ -312,6 +347,13 @@
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div class="flex items-center justify-end space-x-2">
+                      <button
+                        class="text-success-600 hover:text-success-900 p-1"
+                        on:click={() => openStockModal(producto)}
+                        title="Gestionar stock"
+                      >
+                        <PackageCheck class="h-4 w-4" />
+                      </button>
                       <button
                         class="text-primary-600 hover:text-primary-900 p-1"
                         on:click={() => openEditModal(producto)}
@@ -346,5 +388,15 @@
     categorias={categorias}
     on:close={() => showModal = false}
     on:saved={handleProductSaved}
+  />
+{/if}
+
+<!-- Modal de stock -->
+{#if showStockModal}
+  <StockModal
+    show={showStockModal}
+    producto={selectedProductForStock}
+    on:close={() => showStockModal = false}
+    on:saved={handleStockSaved}
   />
 {/if}

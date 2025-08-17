@@ -11,7 +11,7 @@
 
   const dispatch = createEventDispatcher();
 
-  let metodoPago = 'Efectivo'; // Efectivo, QR, Mixto - Por defecto Efectivo
+  let metodoPago = ''; // Usuario debe seleccionar método
   let montoEfectivo = '';
   let montoQR = '';
   let loading = false;
@@ -46,7 +46,7 @@
   }
 
   function resetForm() {
-    metodoPago = 'Efectivo';
+    metodoPago = '';
     montoEfectivo = '';
     montoQR = '';
     error = '';
@@ -90,8 +90,20 @@
   }
 
   function validarPago(): boolean {
+    console.log('Validando pago:', { metodoPago, montoEfectivo, montoQR, total });
+    
+    // Validar que se haya seleccionado un método de pago
+    if (!metodoPago) {
+      error = 'Debe seleccionar un método de pago';
+      return false;
+    }
+    
     if (metodoPago === 'Efectivo') {
       const efectivo = parseFloat(montoEfectivo) || 0;
+      if (efectivo <= 0) {
+        error = 'Debe ingresar un monto en efectivo válido';
+        return false;
+      }
       if (efectivo < total) {
         error = 'El monto en efectivo debe ser mayor o igual al total';
         return false;
@@ -103,11 +115,21 @@
         return false;
       }
     } else if (metodoPago === 'Mixto') {
+      const efectivoMixto = parseFloat(montoEfectivo) || 0;
+      const qrMixto = parseFloat(montoQR) || 0;
+      
+      if (efectivoMixto <= 0 && qrMixto <= 0) {
+        error = 'Debe ingresar al menos un monto para pago mixto';
+        return false;
+      }
+      
       if (!mixtoValido) {
         error = 'La suma de efectivo y QR debe ser igual al total';
         return false;
       }
     }
+    
+    console.log('Validación exitosa');
     return true;
   }
 
@@ -175,7 +197,7 @@
         <!-- Método de pago -->
         <div class="mb-6">
           <label class="block text-sm font-medium text-gray-700 mb-3">
-            Método de Pago
+            Método de Pago {metodoPago ? `(${metodoPago})` : '(Seleccione uno)'}
           </label>
           <div class="grid grid-cols-3 gap-3">
             <button
@@ -212,7 +234,11 @@
 
         <!-- Campos de pago según método -->
         <div class="space-y-4 mb-6">
-          {#if metodoPago === 'Efectivo'}
+          {#if !metodoPago}
+            <div class="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p class="text-sm text-yellow-700">Seleccione un método de pago para continuar</p>
+            </div>
+          {:else if metodoPago === 'Efectivo'}
             <div>
               <div class="flex items-center justify-between mb-2">
                 <label for="montoEfectivo" class="block text-sm font-medium text-gray-700">
@@ -353,7 +379,7 @@
             type="button"
             class="btn-success flex-1"
             on:click={handleSubmit}
-            disabled={loading || !validarPago()}
+            disabled={loading || !metodoPago}
           >
             {#if loading}
               <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

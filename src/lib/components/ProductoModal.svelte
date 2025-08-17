@@ -11,8 +11,7 @@
 
   let form = {
     nombre: '',
-    descripcion: '',
-    codigo_barras: '',
+    codigo_barras: '', // This now holds the description
     precio_compra: '',
     precio_venta: '',
     categoria_id: '',
@@ -33,8 +32,7 @@
       isEditing = true;
       form = {
         nombre: producto.nombre || '',
-        descripcion: producto.descripcion || '',
-        codigo_barras: producto.codigo_barras || '',
+        codigo_barras: producto.codigo_barras || '', // This now holds the description
         precio_compra: producto.precio_compra?.toString() || '',
         precio_venta: producto.precio_venta?.toString() || '',
         categoria_id: producto.categoria_id?.toString() || '',
@@ -45,8 +43,7 @@
       isEditing = false;
       form = {
         nombre: '',
-        descripcion: '',
-        codigo_barras: '',
+        codigo_barras: '', // This now holds the description
         precio_compra: '',
         precio_venta: '',
         categoria_id: '',
@@ -65,8 +62,7 @@
   function resetForm() {
     form = {
       nombre: '',
-      descripcion: '',
-      codigo_barras: '',
+      codigo_barras: '', // This now holds the description
       precio_compra: '',
       precio_venta: '',
       categoria_id: '',
@@ -139,8 +135,7 @@
 
     const productData = {
       nombre: form.nombre.trim(),
-      descripcion: form.descripcion.trim() || null,
-      codigo_barras: form.codigo_barras.trim() || null,
+      codigo_barras: form.codigo_barras.trim() || null, // This is now the description
       precio_compra: form.precio_compra ? parseFloat(form.precio_compra) : null,
       precio_venta: parseFloat(form.precio_venta),
       categoria_id: parseInt(form.categoria_id),
@@ -152,8 +147,7 @@
     // Usar la función de base de datos para crear producto con stock inicial
     const { data, error: dbError } = await supabase.rpc('registrar_producto_con_stock_inicial', {
       p_nombre: productData.nombre,
-      p_descripcion: productData.descripcion,
-      p_codigo_barras: productData.codigo_barras,
+      p_codigo_barras: productData.codigo_barras, // Pass description to p_codigo_barras
       p_precio_compra: productData.precio_compra,
       p_precio_venta: productData.precio_venta,
       p_categoria_id: productData.categoria_id,
@@ -187,8 +181,7 @@
 
     const productData = {
       nombre: form.nombre.trim(),
-      descripcion: form.descripcion.trim() || null,
-      codigo_barras: form.codigo_barras.trim() || null,
+      codigo_barras: form.codigo_barras.trim() || null, // This is now the description
       precio_compra: form.precio_compra ? parseFloat(form.precio_compra) : null,
       precio_venta: parseFloat(form.precio_venta),
       categoria_id: parseInt(form.categoria_id),
@@ -314,7 +307,7 @@
                   bind:value={form.nombre}
                   type="text"
                   id="nombre"
-                  placeholder="Ej: Coca Cola 500ml"
+                  placeholder="Zapatilla Adidas 13"
                   class="input pl-10"
                   disabled={loading}
                   required
@@ -323,34 +316,17 @@
             </div>
 
             <div>
-              <label for="descripcion" class="block text-sm font-medium text-gray-700 mb-2">
+              <label for="codigo_barras" class="block text-sm font-medium text-gray-700 mb-2">
                 Descripción
               </label>
               <textarea
-                bind:value={form.descripcion}
-                id="descripcion"
+                bind:value={form.codigo_barras}
+                id="codigo_barras"
                 rows="3"
                 placeholder="Descripción opcional del producto"
                 class="input"
                 disabled={loading}
               ></textarea>
-            </div>
-
-            <div>
-              <label for="codigo_barras" class="block text-sm font-medium text-gray-700 mb-2">
-                Código de Barras
-              </label>
-              <div class="relative">
-                <Hash class="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  bind:value={form.codigo_barras}
-                  type="text"
-                  id="codigo_barras"
-                  placeholder="Código de barras opcional"
-                  class="input pl-10"
-                  disabled={loading}
-                />
-              </div>
             </div>
 
             <div>

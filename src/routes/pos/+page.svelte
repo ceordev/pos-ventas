@@ -308,6 +308,18 @@
                       </button>
                     </div>
                     
+                    <!-- Campo de observación -->
+                    <div class="mt-2">
+                      <input
+                        type="text"
+                        placeholder="Observación (ej: talla 6, color azul)"
+                        value={item.observacion || ''}
+                        on:input={(e) => posService.updateCartItemObservation(item.product.id, e.target.value)}
+                        class="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                        maxlength="100"
+                      />
+                    </div>
+                    
                     <div class="text-right">
                       <p class="font-bold text-sm">{item.subtotal.toFixed(2)}</p>
                       {#if item.descuento_aplicado > 0}

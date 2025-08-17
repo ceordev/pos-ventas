@@ -20,6 +20,7 @@ export interface CartItem {
   precio_original: number;
   descuento_aplicado: number;
   porcentaje_descuento: number;
+  observacion?: string;
 }
 
 export interface Category {
@@ -188,7 +189,8 @@ class POSService {
           subtotal: quantity * product.precio_venta,
           precio_original: product.precio_venta,
           descuento_aplicado: 0,
-          porcentaje_descuento: 0
+          porcentaje_descuento: 0,
+          observacion: ''
         });
       }
       
@@ -234,6 +236,16 @@ class POSService {
     });
   }
 
+  updateCartItemObservation(productId: number, observacion: string) {
+    cart.update(currentCart => {
+      const item = currentCart.find(item => item.product.id === productId);
+      if (item) {
+        item.observacion = observacion;
+      }
+      return currentCart;
+    });
+  }
+
   clearCart() {
     cart.set([]);
   }
@@ -254,7 +266,8 @@ class POSService {
         precio_compra: item.product.precio_compra,
         precio_original: item.precio_original,
         descuento_aplicado: item.descuento_aplicado,
-        porcentaje_descuento: item.porcentaje_descuento
+        porcentaje_descuento: item.porcentaje_descuento,
+        observacion: item.observacion || null
       }));
 
       const { data, error } = await supabase.rpc('registrar_venta', {

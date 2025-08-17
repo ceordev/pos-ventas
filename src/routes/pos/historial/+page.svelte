@@ -39,6 +39,7 @@
             precio_venta_unitario,
             precio_compra_unitario,
             total,
+            observacion,
             productos(nombre)
           )
         `)
@@ -241,17 +242,22 @@
                   <div class="bg-gray-50 rounded-lg p-3">
                     <div class="space-y-2">
                       {#each venta.detalle_venta as detalle}
-                        <div class="flex justify-between items-center text-sm">
-                          <div class="flex items-center space-x-2">
-                            <span class="font-medium">{detalle.productos?.nombre || 'Producto'}</span>
-                            <span class="text-gray-500">x{detalle.cantidad}</span>
-                            {#if detalle.descuento_aplicado > 0}
-                              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                                -{detalle.porcentaje_descuento.toFixed(0)}%
-                              </span>
+                        <div class="flex justify-between items-start text-sm">
+                          <div class="flex-1">
+                            <div class="flex items-center space-x-2">
+                              <span class="font-medium">{detalle.productos?.nombre || 'Producto'}</span>
+                              <span class="text-gray-500">x{detalle.cantidad}</span>
+                              {#if detalle.descuento_aplicado > 0}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                  -{detalle.porcentaje_descuento.toFixed(0)}%
+                                </span>
+                              {/if}
+                            </div>
+                            {#if detalle.observacion}
+                              <p class="text-xs text-gray-600 italic mt-1">"{detalle.observacion}"</p>
                             {/if}
                           </div>
-                          <div class="text-right">
+                          <div class="text-right ml-4">
                             {#if detalle.descuento_aplicado > 0}
                               <div class="text-xs text-gray-400 line-through">{(detalle.precio_original || detalle.precio_venta_unitario).toFixed(2)}</div>
                             {/if}
