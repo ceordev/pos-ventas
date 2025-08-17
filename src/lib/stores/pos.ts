@@ -124,18 +124,14 @@ class POSService {
 
   async checkCajaAbierta() {
     try {
-      console.log('Verificando estado de caja abierta...');
       const { data, error } = await supabase.rpc('get_open_cierre_caja');
       
-      console.log('Respuesta de get_open_cierre_caja:', { data, error });
       
       if (error) throw error;
       
       if (data && data.length > 0) {
-        console.log('Caja abierta encontrada:', data[0]);
         cajaAbierta.set(data[0]);
       } else {
-        console.log('No hay caja abierta');
         cajaAbierta.set(null);
       }
     } catch (error) {
@@ -147,7 +143,6 @@ class POSService {
   async abrirCaja(montoApertura: number) {
     try {
       // Usar la función simplificada que obtiene automáticamente caja y usuario
-      console.log(await supabase.rpc('get_my_company_id'))
       const { data, error } = await supabase.rpc('abrir_caja_simple', {
         _monto_apertura: montoApertura
       });
@@ -317,13 +312,6 @@ class POSService {
     montoParaAperturaSiguiente: number = 0
   ) {
     try {
-      console.log('Cerrando caja con parámetros:', {
-        idCierreCaja,
-        idUsuarioCierre,
-        montoRealContadoEfectivo,
-        totalGastosCajaChica,
-        montoParaAperturaSiguiente
-      });
 
       const { data, error } = await supabase.rpc('cerrar_caja', {
         _id_cierre_caja: idCierreCaja,

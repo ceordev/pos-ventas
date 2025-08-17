@@ -89,14 +89,11 @@
 
     try {
       const gastos = parseFloat(gastosAdicionales) || 0;
-      console.log('Iniciando cierre de caja...');
       const result = await posService.cerrarCajaSimple(parseFloat(montoFinalEfectivo), gastos);
       
-      console.log('Resultado del cierre:', result);
       
       if (result.success) {
         // Verificar que efectivamente se cerró
-        console.log('Verificando que la caja se cerró...');
         await new Promise(resolve => setTimeout(resolve, 1000)); // Esperar 1 segundo
         await posService.checkCajaAbierta();
         

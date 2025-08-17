@@ -38,7 +38,6 @@
 
       if (dbError) throw dbError;
       
-      console.log('Dashboard data:', data);
       
       dashboardData = Array.isArray(data) ? data[0] : data;
     } catch (err: any) {

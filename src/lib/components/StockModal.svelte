@@ -118,7 +118,6 @@
     try {
       // Aquí podrías crear una tabla de movimientos de stock si quieres auditoría
       // Por ahora solo hacemos el update directo
-      console.log(`Movimiento de stock: ${operacion} ${cantidad} unidades del producto ${productoId}. Motivo: ${motivo}`);
     } catch (err) {
       console.error('Error al registrar movimiento:', err);
     }

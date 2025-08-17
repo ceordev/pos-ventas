@@ -93,7 +93,6 @@
 
       if (totalesError) throw totalesError;
       
-      console.log('Totales result:', totalesResult);
       
       ventasData = ventasResult || [];
       totalesData = Array.isArray(totalesResult) ? totalesResult[0] : totalesResult;

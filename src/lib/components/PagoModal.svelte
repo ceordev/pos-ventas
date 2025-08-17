@@ -90,7 +90,6 @@
   }
 
   function validarPago(): boolean {
-    console.log('Validando pago:', { metodoPago, montoEfectivo, montoQR, total });
     
     // Validar que se haya seleccionado un método de pago
     if (!metodoPago) {
@@ -129,7 +128,6 @@
       }
     }
     
-    console.log('Validación exitosa');
     return true;
   }
 

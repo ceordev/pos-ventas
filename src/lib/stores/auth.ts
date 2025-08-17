@@ -54,7 +54,6 @@ class AuthService {
 
   private async loadUserProfile(user: User) {
     try {
-      console.log('Loading user profile for:', user.id);
       
       const { data: profile, error } = await supabase
         .from('usuarios')
@@ -81,7 +80,6 @@ class AuthService {
         throw error;
       }
 
-      console.log('Profile loaded successfully:', profile);
 
       const userProfile: UserProfile = {
         ...profile,

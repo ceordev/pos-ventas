@@ -6,7 +6,6 @@ export const POST: RequestHandler = async ({ request }) => {
   try {
     const { email, password } = await request.json();
     
-    console.log('Testing authentication for:', email);
     
     // 1. Intentar autenticación
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -19,7 +18,6 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'Authentication failed', details: authError }, { status: 401 });
     }
     
-    console.log('Auth successful, user ID:', authData.user.id);
     
     // 2. Intentar consulta directa a usuarios
     const { data: userData, error: userError } = await supabase
@@ -37,7 +35,6 @@ export const POST: RequestHandler = async ({ request }) => {
       }, { status: 500 });
     }
     
-    console.log('User data:', userData);
     
     // 3. Intentar consulta con join a roles
     const { data: profileData, error: profileError } = await supabase
@@ -64,7 +61,6 @@ export const POST: RequestHandler = async ({ request }) => {
       }, { status: 500 });
     }
     
-    console.log('Profile data:', profileData);
     
     return json({ 
       success: true, 
