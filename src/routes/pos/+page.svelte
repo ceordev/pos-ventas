@@ -170,7 +170,7 @@
       <div class="flex-1 flex flex-col">
         <!-- Barra de búsqueda y filtros -->
         <div class="bg-white p-4 border-b">
-          <div class="flex space-x-4 mb-4">
+          <div class="flex space-x-4 mb-3">
             <div class="flex-1 relative">
               <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
@@ -184,21 +184,25 @@
           </div>
           
           <!-- Filtros de categoría -->
-          <div class="flex space-x-2 overflow-x-auto">
-            <button
-              class="btn-secondary whitespace-nowrap {$selectedCategory === null ? 'bg-primary-100 text-primary-700' : ''}"
-              on:click={() => handleCategoryFilter(null)}
-            >
-              Todas
-            </button>
-            {#each $categories as category}
+          <div class="max-h-16 overflow-y-auto border-t pt-2 relative">
+            <div class="flex flex-wrap gap-1.5 pb-1">
               <button
-                class="btn-secondary whitespace-nowrap {$selectedCategory === category.id ? 'bg-primary-100 text-primary-700' : ''}"
-                on:click={() => handleCategoryFilter(category.id)}
+                class="btn-secondary whitespace-nowrap text-xs px-2 py-1 {$selectedCategory === null ? 'bg-primary-100 text-primary-700' : ''}"
+                on:click={() => handleCategoryFilter(null)}
               >
-                {category.nombre}
+                Todas
               </button>
-            {/each}
+              {#each $categories as category}
+                <button
+                  class="btn-secondary whitespace-nowrap text-xs px-2 py-1 {$selectedCategory === category.id ? 'bg-primary-100 text-primary-700' : ''}"
+                  on:click={() => handleCategoryFilter(category.id)}
+                >
+                  {category.nombre}
+                </button>
+              {/each}
+            </div>
+            <!-- Indicador de scroll -->
+            <div class="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent opacity-50 pointer-events-none"></div>
           </div>
         </div>
 
@@ -228,7 +232,7 @@
       </div>
 
       <!-- Panel Derecho - Carrito -->
-      <div class="w-96 bg-white border-l flex flex-col">
+      <div class="w-80 lg:w-96 bg-white border-l flex flex-col">
         <!-- Header del carrito -->
         <div class="p-4 border-b">
           <div class="flex items-center justify-between">
