@@ -51,7 +51,9 @@
 
   function handleSearch(event: Event) {
     const target = event.target as HTMLInputElement;
-    searchTerm.set(target.value);
+    if (target) {
+      searchTerm.set(target.value);
+    }
   }
 
   function openPagoModal() {
@@ -69,6 +71,10 @@
     showPagoModal = true;
   }
 
+  function openAperturaModal() {
+    showAperturaModal = true;
+  }
+
   function handleVentaCompleta() {
     showPagoModal = false;
     // El carrito se limpia automáticamente en el servicio
@@ -83,6 +89,10 @@
         showPagoModal = true;
       }, 100);
     }
+  }
+
+  function handleAperturaCancelada() {
+    showAperturaModal = false;
   }
 
   function handleCierreCompleta() {
@@ -145,6 +155,13 @@
                 on:click={() => showCierreModal = true}
               >
                 Cerrar Caja
+              </button>
+            {:else}
+              <button
+                class="btn-primary"
+                on:click={openAperturaModal}
+              >
+                Abrir Caja
               </button>
             {/if}
             
@@ -211,9 +228,9 @@
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {#each $filteredProducts as product}
               <button
-                class="card p-4 hover:shadow-md transition-shadow text-left {product.stock <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}"
+                class="card p-4 hover:shadow-md transition-shadow text-left {(product.stock || 0) <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}"
                 on:click={() => handleProductClick(product)}
-                disabled={product.stock <= 0}
+                disabled={(product.stock || 0) <= 0}
               >
                 <div class="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
                   {#if product.imagen_url}
@@ -318,7 +335,12 @@
                         type="text"
                         placeholder="Observación (ej: talla 6, color azul)"
                         value={item.observacion || ''}
-                        on:input={(e) => posService.updateCartItemObservation(item.product.id, e.target.value)}
+                        on:input={(e) => {
+                          const target = e.target as HTMLInputElement;
+                          if (target) {
+                            posService.updateCartItemObservation(item.product.id, target.value);
+                          }
+                        }}
                         class="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                         maxlength="100"
                       />
@@ -366,7 +388,7 @@
   {#if showAperturaModal}
     <AperturaCajaModal
       show={showAperturaModal}
-      on:close={() => showAperturaModal = false}
+      on:close={handleAperturaCancelada}
       on:success={handleAperturaCompleta}
     />
   {/if}

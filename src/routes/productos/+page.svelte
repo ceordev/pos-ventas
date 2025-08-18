@@ -216,7 +216,10 @@
           <select 
             class="input"
             value={selectedCategory || ''}
-            on:change={(e) => handleCategoryFilter(e.target.value ? parseInt(e.target.value) : null)}
+            on:change={(e) => {
+              const target = e.target as HTMLSelectElement;
+              handleCategoryFilter(target.value ? parseInt(target.value) : null);
+            }}
           >
             <option value="">Todas las categorías</option>
             {#each categorias as categoria}

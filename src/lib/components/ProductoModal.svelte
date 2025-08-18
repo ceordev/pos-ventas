@@ -117,7 +117,7 @@
       return false;
     }
     
-    if (!isEditing && (!form.stock_inicial || parseFloat(form.stock_inicial) < 0)) {
+    if (!isEditing && (form.stock_inicial === '' || parseFloat(form.stock_inicial) < 0)) {
       error = 'El stock inicial no puede ser negativo';
       return false;
     }
@@ -245,10 +245,17 @@
       
       selectedFile = file;
       
-      // Crear preview
+      // Crear preview con manejo de errores
       const reader = new FileReader();
       reader.onload = (e) => {
         imagePreview = e.target?.result as string;
+      };
+      reader.onerror = () => {
+        console.error('Error al leer el archivo');
+        alert('Error al procesar la imagen. Intenta con otra imagen.');
+        selectedFile = null;
+        // Limpiar el input
+        target.value = '';
       };
       reader.readAsDataURL(file);
     }
@@ -422,24 +429,49 @@
               
               <!-- Opción 1: Subir archivo -->
               <div class="space-y-3">
-                <div>
-                  <label for="file-upload" class="cursor-pointer">
-                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary-400 transition-colors">
-                      <Upload class="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p class="text-sm text-gray-600">
-                        {selectedFile ? selectedFile.name : 'Haz clic para subir una imagen'}
-                      </p>
-                      <p class="text-xs text-gray-500 mt-1">PNG, JPG hasta 5MB</p>
-                    </div>
-                  </label>
-                  <input
-                    id="file-upload"
-                    type="file"
-                    accept="image/*"
-                    class="hidden"
-                    on:change={handleFileSelect}
-                    disabled={loading || uploadingImage}
-                  />
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <!-- Subir archivo -->
+                  <div>
+                    <label for="file-upload" class="cursor-pointer">
+                      <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary-400 transition-colors">
+                        <Upload class="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                        <p class="text-sm text-gray-600">
+                          {selectedFile ? selectedFile.name : 'Subir imagen'}
+                        </p>
+                        <p class="text-xs text-gray-500 mt-1">PNG, JPG hasta 5MB</p>
+                      </div>
+                    </label>
+                    <input
+                      id="file-upload"
+                      type="file"
+                      accept="image/*"
+                      class="hidden"
+                      on:change={handleFileSelect}
+                      disabled={loading || uploadingImage}
+                    />
+                  </div>
+
+                  <!-- Tomar foto (solo en móviles) -->
+                  <div>
+                    <label for="camera-upload" class="cursor-pointer">
+                      <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary-400 transition-colors">
+                        <Camera class="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                        <p class="text-sm text-gray-600">
+                          {selectedFile ? selectedFile.name : 'Tomar foto'}
+                        </p>
+                        <p class="text-xs text-gray-500 mt-1">Usar cámara</p>
+                      </div>
+                    </label>
+                    <input
+                      id="camera-upload"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      class="hidden"
+                      on:change={handleFileSelect}
+                      disabled={loading || uploadingImage}
+                    />
+                  </div>
                 </div>
 
                 <!-- Opción 2: URL de imagen -->
