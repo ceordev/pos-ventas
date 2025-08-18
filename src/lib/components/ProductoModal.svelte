@@ -90,7 +90,14 @@
       dispatch('saved');
       resetForm();
     } catch (err: any) {
+      console.error('Error en handleSubmit:', err);
       error = err.message || 'Error al guardar producto';
+      
+      // Si hay un error de subida de imagen, limpiar el archivo seleccionado
+      if (err.message && err.message.includes('imagen')) {
+        selectedFile = null;
+        imagePreview = null;
+      }
     } finally {
       loading = false;
     }
@@ -205,24 +212,41 @@
   // Funciones para manejo de imágenes
   async function uploadImage(file: File): Promise<string> {
     uploadingImage = true;
+    
+    // Crear un timeout de 30 segundos
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout: La subida de imagen tardó demasiado')), 30000);
+    });
+
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.').pop() || 'jpg';
       const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `productos/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log('Iniciando subida de imagen:', fileName);
+
+      const uploadPromise = supabase.storage
         .from('product-images')
         .upload(filePath, file);
 
+      // Usar Promise.race para implementar timeout
+      const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
+
       if (uploadError) {
-        throw new Error('Error al subir la imagen');
+        console.error('Error de subida:', uploadError);
+        throw new Error(`Error al subir la imagen: ${uploadError.message}`);
       }
+
+      console.log('Imagen subida exitosamente');
 
       const { data: { publicUrl } } = supabase.storage
         .from('product-images')
         .getPublicUrl(filePath);
 
       return publicUrl;
+    } catch (error) {
+      console.error('Error en uploadImage:', error);
+      throw error;
     } finally {
       uploadingImage = false;
     }
@@ -233,13 +257,21 @@
     const file = target.files?.[0];
     
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        alert('La imagen debe ser menor a 5MB');
+      console.log('Archivo seleccionado:', {
+        name: file.name,
+        size: file.size,
+        type: file.type
+      });
+
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit (aumentado para fotos de cámara)
+        alert('La imagen debe ser menor a 10MB');
+        target.value = '';
         return;
       }
       
       if (!file.type.startsWith('image/')) {
         alert('Por favor selecciona un archivo de imagen válido');
+        target.value = '';
         return;
       }
       
@@ -249,11 +281,13 @@
       const reader = new FileReader();
       reader.onload = (e) => {
         imagePreview = e.target?.result as string;
+        console.log('Preview creado exitosamente');
       };
-      reader.onerror = () => {
-        console.error('Error al leer el archivo');
+      reader.onerror = (error) => {
+        console.error('Error al leer el archivo:', error);
         alert('Error al procesar la imagen. Intenta con otra imagen.');
         selectedFile = null;
+        imagePreview = null;
         // Limpiar el input
         target.value = '';
       };
@@ -521,7 +555,7 @@
               {#if uploadingImage}
                 <div class="mt-2 flex items-center text-sm text-primary-600">
                   <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600 mr-2"></div>
-                  Subiendo imagen...
+                  Subiendo imagen... (puede tardar unos segundos)
                 </div>
               {/if}
             </div>
