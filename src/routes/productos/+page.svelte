@@ -32,7 +32,7 @@
     filteredProductos = productos.filter(producto => {
       const matchesSearch = producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            producto.codigo_barras?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === null || producto.categoria_id === selectedCategory;
+      const matchesCategory = selectedCategory === null || producto.id_categoria === selectedCategory;
       return matchesSearch && matchesCategory;
     });
   }
@@ -51,7 +51,7 @@
         .from('productos')
         .select(`
           *,
-          categorias(nombre),
+          categorias(id, nombre),
           stock(cantidad)
         `)
         .order('nombre');

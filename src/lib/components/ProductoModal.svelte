@@ -7,6 +7,8 @@
   export let producto: any = null;
   export let categorias: any[] = [];
 
+
+
   const dispatch = createEventDispatcher();
 
   let form = {
@@ -30,15 +32,23 @@
   $: {
     if (producto) {
       isEditing = true;
+
       form = {
         nombre: producto.nombre || '',
         codigo_barras: producto.codigo_barras || '', // This now holds the description
         precio_compra: producto.precio_compra?.toString() || '',
         precio_venta: producto.precio_venta?.toString() || '',
-        categoria_id: producto.categoria_id?.toString() || '',
+        categoria_id: producto.id_categoria?.toString() || '',
         imagen_url: producto.imagen_url || '',
         stock_inicial: producto.stock?.toString() || '0'
-      };
+              };
+        
+        // Forzar la selección de categoría después de un pequeño delay
+        if (producto.id_categoria) {
+          setTimeout(() => {
+            form.categoria_id = producto.id_categoria.toString();
+          }, 100);
+        }
     } else {
       isEditing = false;
       form = {
@@ -145,7 +155,7 @@
       codigo_barras: form.codigo_barras.trim() || null, // This is now the description
       precio_compra: form.precio_compra ? parseFloat(form.precio_compra) : null,
       precio_venta: parseFloat(form.precio_venta),
-      categoria_id: parseInt(form.categoria_id),
+      id_categoria: parseInt(form.categoria_id),
       imagen_url: imagenUrl
     };
 
@@ -157,7 +167,7 @@
       p_codigo_barras: productData.codigo_barras, // Pass description to p_codigo_barras
       p_precio_compra: productData.precio_compra,
       p_precio_venta: productData.precio_venta,
-      p_categoria_id: productData.categoria_id,
+      p_categoria_id: productData.id_categoria,
       p_imagen_url: productData.imagen_url,
       p_stock_inicial: stockInicial
     });
@@ -191,7 +201,7 @@
       codigo_barras: form.codigo_barras.trim() || null, // This is now the description
       precio_compra: form.precio_compra ? parseFloat(form.precio_compra) : null,
       precio_venta: parseFloat(form.precio_venta),
-      categoria_id: parseInt(form.categoria_id),
+      id_categoria: parseInt(form.categoria_id),
       imagen_url: imagenUrl
     };
 
@@ -377,15 +387,21 @@
               <div class="relative">
                 <Tag class="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <select
-                  bind:value={form.categoria_id}
                   id="categoria"
                   class="input pl-10"
                   disabled={loading}
                   required
+                  on:change={(e) => {
+                    form.categoria_id = (e.target as HTMLSelectElement).value;
+                  }}
                 >
                   <option value="">Seleccionar categoría</option>
                   {#each categorias as categoria}
-                    <option value={categoria.id}>{categoria.nombre}</option>
+                    {@const optionValue = categoria.id.toString()}
+                    {@const isSelected = form.categoria_id === optionValue}
+                    <option value={optionValue} selected={isSelected}>
+                      {categoria.nombre} {isSelected ? '(Actual)' : ''}
+                    </option>
                   {/each}
                 </select>
               </div>
