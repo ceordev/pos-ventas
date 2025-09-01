@@ -8,15 +8,36 @@
     ShoppingCart, 
     Clock, 
     Package,
-    ArrowLeft
+    ArrowLeft,
+    Filter,
+    X,
+    Edit,
+    Trash2
   } from 'lucide-svelte';
   import { goto } from '$app/navigation';
+  import { 
+    formatDate as formatBoliviaDate, 
+    getStartOfDay, 
+    getEndOfDay, 
+    getCurrentBoliviaTime,
+    isToday 
+  } from '$lib/utils/dateUtils';
+  import VentaModal from '$lib/components/VentaModal.svelte';
 
   let loading = true;
   let ventas: any[] = [];
   let totalVentas = 0;
   let totalGanancia = 0;
   let error = '';
+  
+  // Filtros
+  let fechaFiltro = '';
+  let showFilters = false;
+  
+  // Modal de edición/eliminación
+  let showVentaModal = false;
+  let selectedVenta: any = null;
+  let modalMode: 'edit' | 'delete' = 'edit';
 
   onMount(async () => {
     await loadHistorialVentas();
@@ -25,11 +46,8 @@
 
   async function loadHistorialVentas() {
     try {
-      // Obtener ventas de los últimos 3 días para el usuario actual
-      const fechaInicio = new Date();
-      fechaInicio.setDate(fechaInicio.getDate() - 3);
-      
-      const { data, error: dbError } = await supabase
+      console.log('🔄 Cargando historial de ventas...');
+      let query = supabase
         .from('ventas')
         .select(`
           *,
@@ -43,11 +61,32 @@
             productos(nombre)
           )
         `)
-        .eq('id_usuario', $authStore.profile?.id)
-        .gte('fecha', fechaInicio.toISOString())
-        .order('fecha', { ascending: false });
+        .eq('id_usuario', $authStore.profile?.id);
+
+      // Aplicar filtro de fecha si está seleccionado
+      if (fechaFiltro) {
+        const fechaSeleccionada = new Date(fechaFiltro);
+        const inicioDia = getStartOfDay(fechaSeleccionada);
+        const finDia = getEndOfDay(fechaSeleccionada);
+        
+        query = query
+          .gte('fecha', inicioDia.toISOString())
+          .lte('fecha', finDia.toISOString());
+      } else {
+        // Por defecto, mostrar ventas de los últimos 7 días
+        const fechaInicio = new Date();
+        fechaInicio.setDate(fechaInicio.getDate() - 7);
+        query = query.gte('fecha', fechaInicio.toISOString());
+      }
+
+      const { data, error: dbError } = await query.order('fecha', { ascending: false });
 
       if (dbError) throw dbError;
+
+      console.log('📊 Ventas cargadas:', data?.length || 0, 'ventas');
+      if (data && data.length > 0) {
+        console.log('📋 IDs de ventas:', data.map(v => v.id));
+      }
 
       ventas = data || [];
       
@@ -55,7 +94,7 @@
       totalVentas = ventas.reduce((sum, venta) => sum + venta.monto_total, 0);
       totalGanancia = ventas.reduce((sum, venta) => {
         const gananciaVenta = venta.detalle_venta?.reduce((sumDetalle: number, detalle: any) => {
-          return sumDetalle + (detalle.total - (detalle.cantidad * detalle.precio_compra_unitario));
+          return sumDetalle + (detalle.total - (detalle.precio_compra_unitario || 0));
         }, 0) || 0;
         return sum + gananciaVenta;
       }, 0);
@@ -67,14 +106,64 @@
   }
 
   function formatDate(dateString: string) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return formatBoliviaDate(dateString, true);
+  }
+
+  async function handleFilterChange() {
+    loading = true;
+    await loadHistorialVentas();
+    loading = false;
+  }
+
+  function clearFilters() {
+    fechaFiltro = '';
+    loadHistorialVentas();
+  }
+
+  function toggleFilters() {
+    showFilters = !showFilters;
+  }
+
+  function editVenta(venta: any) {
+    selectedVenta = venta;
+    modalMode = 'edit';
+    showVentaModal = true;
+  }
+
+  function deleteVenta(venta: any) {
+    selectedVenta = venta;
+    modalMode = 'delete';
+    showVentaModal = true;
+  }
+
+  async function handleVentaSaved(event: CustomEvent) {
+    const { venta: updatedVenta } = event.detail;
+    console.log('💾 Venta editada, recargando datos...');
+    
+    // Recargar los datos completos para obtener observaciones actualizadas
+    await loadHistorialVentas();
+  }
+
+  function handleVentaDeleted(event: CustomEvent) {
+    const { ventaId } = event.detail;
+    console.log('🗑️ Ventana eliminada del historial local, ID:', ventaId);
+    
+    // Remover la venta de la lista
+    const ventasAntes = ventas.length;
+    ventas = ventas.filter(v => v.id !== ventaId);
+    const ventasDespues = ventas.length;
+    
+    console.log(`📊 Ventas antes: ${ventasAntes}, después: ${ventasDespues}`);
+    // Recalcular totales
+    totalVentas = ventas.reduce((sum, venta) => sum + venta.monto_total, 0);
+    totalGanancia = ventas.reduce((sum, venta) => {
+      const gananciaVenta = venta.detalle_venta?.reduce((sumDetalle: number, detalle: any) => {
+        return sumDetalle + (detalle.total - (detalle.cantidad * detalle.precio_compra_unitario));
+      }, 0) || 0;
+      return sum + gananciaVenta;
+    }, 0);
+    
+    console.log('✅ Totales recalculados:', { totalVentas, totalGanancia });
   }
 
   function getTipoPago(venta: any) {
@@ -89,7 +178,7 @@
 
   function calcularGananciaVenta(venta: any) {
     return venta.detalle_venta?.reduce((sum: number, detalle: any) => {
-      return sum + (detalle.total - (detalle.cantidad * detalle.precio_compra_unitario));
+      return sum + (detalle.total - (detalle.cantidad * (detalle.precio_compra_unitario || 0)));
     }, 0) || 0;
   }
 
@@ -119,7 +208,7 @@
               <ShoppingCart class="h-8 w-8 mr-3" />
               Mi Historial de Ventas
             </h1>
-            <p class="text-gray-600 mt-1">Últimos 3 días - {$authStore.profile?.nombres}</p>
+            <p class="text-gray-600 mt-1">Últimos 7 días - {$authStore.profile?.nombres}</p>
           </div>
         </div>
         
@@ -135,6 +224,58 @@
     {#if error}
       <div class="bg-danger-50 border border-danger-200 rounded-lg p-4 mb-6">
         <p class="text-danger-700">{error}</p>
+      </div>
+    {/if}
+
+    <!-- Panel de filtros -->
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center space-x-4">
+        <button
+          on:click={toggleFilters}
+          class="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+        >
+          <Filter class="h-4 w-4" />
+          <span>Filtros</span>
+        </button>
+        
+        {#if fechaFiltro}
+          <span class="text-sm text-gray-600">
+            Filtrado por: {new Date(fechaFiltro).toLocaleDateString('es-ES')}
+          </span>
+        {/if}
+      </div>
+      
+      {#if fechaFiltro}
+        <button
+          on:click={clearFilters}
+          class="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-700"
+        >
+          <X class="h-4 w-4" />
+          <span>Limpiar filtros</span>
+        </button>
+      {/if}
+    </div>
+
+    {#if showFilters}
+      <div class="bg-white rounded-lg shadow-sm border p-4 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-medium text-gray-900">Filtros</h3>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="fecha-filtro" class="block text-sm font-medium text-gray-700 mb-2">
+              Filtrar por fecha
+            </label>
+            <input
+              id="fecha-filtro"
+              type="date"
+              bind:value={fechaFiltro}
+              on:change={handleFilterChange}
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+        </div>
       </div>
     {/if}
 
@@ -207,31 +348,50 @@
                   <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-2">
                       <Clock class="h-4 w-4 text-gray-400" />
-                      <span class="text-sm text-gray-600">{formatDate(venta.fecha)}</span>
+                      <span class="text-sm text-gray-600">{formatBoliviaDate(venta.fecha)}</span>
                     </div>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
                       {getTipoPago(venta)}
                     </span>
                   </div>
-                  
-                  <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <p class="text-sm text-gray-600">Total Venta</p>
-                      <p class="font-semibold text-lg text-gray-900">{venta.monto_total.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-600">Efectivo</p>
-                      <p class="font-medium text-gray-900">{venta.monto_pagado_efectivo.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-600">QR</p>
-                      <p class="font-medium text-gray-900">{venta.monto_pagado_qr.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-600">Ganancia</p>
-                      <p class="font-medium text-success-600">{calcularGananciaVenta(venta).toFixed(2)}</p>
-                    </div>
-                  </div>
+                </div>
+                
+                <!-- Botones de acción -->
+                <div class="flex items-center space-x-2">
+                  <button
+                    on:click={() => editVenta(venta)}
+                    class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                    title="Editar venta"
+                  >
+                    <Edit class="h-4 w-4" />
+                  </button>
+                  <button
+                    on:click={() => deleteVenta(venta)}
+                    class="p-2 text-gray-400 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                    title="Eliminar venta"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <!-- Totales de la venta -->
+              <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p class="text-sm text-gray-600">Total Venta</p>
+                  <p class="font-semibold text-lg text-gray-900">{venta.monto_total.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">Efectivo</p>
+                  <p class="font-medium text-gray-900">{venta.monto_pagado_efectivo.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">QR</p>
+                  <p class="font-medium text-gray-900">{venta.monto_pagado_qr.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-600">Ganancia</p>
+                  <p class="font-medium text-success-600">{calcularGananciaVenta(venta).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -277,3 +437,16 @@
     {/if}
   </main>
 </div>
+
+<!-- Modal de edición/eliminación de venta -->
+<VentaModal
+  bind:show={showVentaModal}
+  venta={selectedVenta}
+  mode={modalMode}
+  on:saved={handleVentaSaved}
+  on:deleted={handleVentaDeleted}
+  on:close={() => {
+    showVentaModal = false;
+    selectedVenta = null;
+  }}
+/>
