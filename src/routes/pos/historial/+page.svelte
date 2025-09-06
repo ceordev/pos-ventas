@@ -65,13 +65,48 @@
 
       // Aplicar filtro de fecha si está seleccionado
       if (fechaFiltro) {
+        console.log('🔍 DEBUG FILTRO - Fecha original:', fechaFiltro);
+        
         const fechaSeleccionada = new Date(fechaFiltro);
-        const inicioDia = getStartOfDay(fechaSeleccionada);
-        const finDia = getEndOfDay(fechaSeleccionada);
+        console.log('🔍 DEBUG FILTRO - Fecha seleccionada:', fechaSeleccionada);
+        console.log('🔍 DEBUG FILTRO - Fecha seleccionada ISO:', fechaSeleccionada.toISOString());
+        
+        // Crear rango de fechas en zona horaria de Bolivia
+        const inicioDia = new Date(fechaSeleccionada);
+        inicioDia.setHours(0, 0, 0, 0);
+        
+        const finDia = new Date(fechaSeleccionada);
+        finDia.setHours(23, 59, 59, 999);
+        
+        console.log('🔍 DEBUG FILTRO - Rango Bolivia:', {
+          inicio: inicioDia.toLocaleString('es-ES'),
+          fin: finDia.toLocaleString('es-ES')
+        });
+        
+        // SOLUCIÓN TEMPORAL: Ajustar el rango para compensar el desfase
+        // Como la BD almacena en UTC pero queremos filtrar por día de Bolivia
+        const inicioUTC = new Date(Date.UTC(
+          fechaSeleccionada.getFullYear(),
+          fechaSeleccionada.getMonth(),
+          fechaSeleccionada.getDate() - 1,  // Restar 1 día para compensar
+          4, 0, 0, 0
+        ));
+        
+        const finUTC = new Date(Date.UTC(
+          fechaSeleccionada.getFullYear(),
+          fechaSeleccionada.getMonth(),
+          fechaSeleccionada.getDate() - 1,  // Restar 1 día para compensar
+          27, 59, 59, 999
+        ));
+        
+        console.log('🔍 DEBUG FILTRO - Rango UTC compensado:', {
+          inicio: inicioUTC.toISOString(),
+          fin: finUTC.toISOString()
+        });
         
         query = query
-          .gte('fecha', inicioDia.toISOString())
-          .lte('fecha', finDia.toISOString());
+          .gte('fecha', inicioUTC.toISOString())
+          .lte('fecha', finUTC.toISOString());
       } else {
         // Por defecto, mostrar ventas de los últimos 7 días
         const fechaInicio = new Date();
@@ -86,6 +121,7 @@
       console.log('📊 Ventas cargadas:', data?.length || 0, 'ventas');
       if (data && data.length > 0) {
         console.log('📋 IDs de ventas:', data.map(v => v.id));
+
       }
 
       ventas = data || [];

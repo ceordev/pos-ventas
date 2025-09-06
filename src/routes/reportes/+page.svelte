@@ -14,6 +14,13 @@
     X,
     Package
   } from 'lucide-svelte';
+  import { 
+    formatDate as formatBoliviaDate, 
+    getStartOfDay, 
+    getEndOfDay, 
+    getCurrentBoliviaTime,
+    isToday 
+  } from '$lib/utils/dateUtils';
 
   let loading = true;
   let ventasData: any[] = [];
@@ -77,22 +84,62 @@
 
   async function loadReportData() {
     try {
+      console.log('🔄 Cargando datos de reportes...');
+      console.log('🔍 Filtros aplicados:', { fechaInicio, fechaFin, cajeroFiltro, metodoPagoFiltro });
+      
+      // Ajustar las fechas para compensar el desfase de zona horaria
+      let fechaInicioAjustada = fechaInicio;
+      let fechaFinAjustada = fechaFin;
+      
+      if (fechaInicio && fechaFin) {
+        // Crear fechas en UTC para compensar el desfase
+        const inicioDate = new Date(fechaInicio);
+        const finDate = new Date(fechaFin);
+        
+        // Ajustar para compensar el desfase de zona horaria
+        const inicioUTC = new Date(Date.UTC(
+          inicioDate.getFullYear(),
+          inicioDate.getMonth(),
+          inicioDate.getDate() - 1,  // Restar 1 día para compensar
+          4, 0, 0, 0
+        ));
+        
+        const finUTC = new Date(Date.UTC(
+          finDate.getFullYear(),
+          finDate.getMonth(),
+          finDate.getDate() - 1,  // Restar 1 día para compensar
+          27, 59, 59, 999
+        ));
+        
+        fechaInicioAjustada = inicioUTC.toISOString();
+        fechaFinAjustada = finUTC.toISOString();
+        
+        console.log('🔍 Fechas ajustadas para BD:', {
+          original: { fechaInicio, fechaFin },
+          ajustada: { fechaInicioAjustada, fechaFinAjustada }
+        });
+      }
+      
       // Cargar historial de ventas
       const { data: ventasResult, error: ventasError } = await supabase.rpc('get_sales_history', {
-        _fecha_inicio: fechaInicio,
-        _fecha_fin: fechaFin
+        _fecha_inicio: fechaInicioAjustada,
+        _fecha_fin: fechaFinAjustada
       });
 
       if (ventasError) throw ventasError;
       
       // Cargar totales
       const { data: totalesResult, error: totalesError } = await supabase.rpc('get_sales_history_totals', {
-        _fecha_inicio: fechaInicio,
-        _fecha_fin: fechaFin
+        _fecha_inicio: fechaInicioAjustada,
+        _fecha_fin: fechaFinAjustada
       });
 
       if (totalesError) throw totalesError;
       
+      console.log('📊 Datos cargados:', {
+        ventas: ventasResult?.length || 0,
+        totales: totalesResult
+      });
       
       ventasData = ventasResult || [];
       totalesData = Array.isArray(totalesResult) ? totalesResult[0] : totalesResult;
@@ -158,8 +205,8 @@
   function generateCSV(): string {
     const headers = ['Fecha', 'Hora', 'Cajero', 'Total', 'Método de Pago', 'Items'];
     const rows = ventasData.map(venta => [
-      new Date(venta.fecha_venta).toLocaleDateString(),
-      new Date(venta.fecha_venta).toLocaleTimeString(),
+      formatBoliviaDate(venta.fecha_venta, false), // Solo fecha
+      formatBoliviaDate(venta.fecha_venta, true).split(', ')[1], // Solo hora
       venta.cajero_nombre,
       venta.total.toFixed(2),
       venta.metodo_pago,
@@ -189,11 +236,10 @@
   }
 
   function formatDateTime(dateString: string): { date: string, time: string } {
-    const date = new Date(dateString);
-    return {
-      date: date.toLocaleDateString(),
-      time: date.toLocaleTimeString()
-    };
+    // Usar la función de fecha de Bolivia
+    const formatted = formatBoliviaDate(dateString, true);
+    const [date, time] = formatted.split(', ');
+    return { date, time };
   }
 
   function calcularGananciaVenta(venta: any): number {
