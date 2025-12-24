@@ -213,7 +213,7 @@
 
 {#if show}
   <div class="modal-overlay" role="dialog" aria-modal="true" on:click={close} on:keydown={(e) => e.key === 'Escape' && close()}>
-    <div class="modal-content" style="width: 60vw; max-width: 800px; min-width: 600px;" role="document" on:click|stopPropagation on:keydown|stopPropagation> <!-- Forced width via inline style -->
+    <div class="modal-content" style="width: 95vw; max-width: 900px;" role="document" on:click|stopPropagation on:keydown|stopPropagation> <!-- Responsive width -->
       <!-- Header -->
       <div class="flex items-center justify-between p-6 border-b">
         <div class="flex items-center">
@@ -229,10 +229,10 @@
         </button>
       </div>
 
-      <div class="flex flex-row w-full items-stretch" style="height: 500px; max-height: 70vh;"> <!-- Fixed height, products scroll internally -->
+      <div class="flex flex-col md:flex-row w-full items-stretch overflow-auto" style="max-height: 80vh;"> <!-- Responsive: stack on small, row on md+ -->
           
-        <!-- Left: Editable Items List (Takes 66% width, min 600px) -->
-        <div class="w-2/3 min-w-[600px] border-r p-6 overflow-y-auto bg-gray-50 flex flex-col shrink-0">
+        <!-- Left: Editable Items List -->
+        <div class="w-full md:w-2/3 md:border-r p-4 md:p-6 overflow-y-auto bg-gray-50 flex flex-col">
             <h3 class="text-sm font-medium text-gray-700 mb-4">Detalle de Productos</h3>
             
             <div class="space-y-3 flex-1">
@@ -277,8 +277,8 @@
             </div>
         </div>
 
-        <!-- Right: Payment Methods & Total (Takes 33% width, min 350px) -->
-        <div class="w-1/3 min-w-[350px] p-6 flex flex-col bg-white shrink-0">
+        <!-- Right: Payment Methods -->
+        <div class="w-full md:w-1/3 p-4 md:p-6 flex flex-col bg-white border-t md:border-t-0">
 
             <!-- Error Alert -->
             {#if error}
