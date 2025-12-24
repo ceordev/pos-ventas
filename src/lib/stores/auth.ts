@@ -35,7 +35,7 @@ class AuthService {
   private async init() {
     // Obtener sesión actual
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     if (session?.user) {
       await this.loadUserProfile(session.user);
     } else {
@@ -43,9 +43,9 @@ class AuthService {
     }
 
     // Escuchar cambios de autenticación
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        await this.loadUserProfile(session.user);
+        this.loadUserProfile(session.user);
       } else {
         authStore.set({ user: null, profile: null, loading: false });
       }
@@ -54,7 +54,7 @@ class AuthService {
 
   private async loadUserProfile(user: User) {
     try {
-      
+
       const { data: profile, error } = await supabase
         .from('usuarios')
         .select(`
@@ -134,6 +134,11 @@ class AuthService {
         _simbolo_moneda: companyData.simbolo_moneda
       });
 
+    if (error) throw error;
+    return data;
+  }
+  async updateUser(attributes: { email?: string; password?: string }) {
+    const { data, error } = await supabase.auth.updateUser(attributes);
     if (error) throw error;
     return data;
   }

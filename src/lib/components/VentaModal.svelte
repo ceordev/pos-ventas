@@ -6,9 +6,10 @@
     Edit, 
     Trash2, 
     Save, 
-    AlertTriangle,
     DollarSign,
-    ShoppingCart
+    AlertTriangle,
+    ShoppingCart,
+    Package
   } from 'lucide-svelte';
   import { formatDate } from '$lib/utils/dateUtils';
 
@@ -101,73 +102,28 @@
     error = '';
 
     try {
-      console.log('🗑️ Iniciando eliminación de venta:', venta.id);
+      console.log('🗑️ Iniciando eliminación de venta (RPC):', venta.id);
+
+      // Llamar a la función RPC que maneja todo de forma atómica
+      const { data, error: rpcError } = await supabase.rpc('delete_venta_and_restore_stock', {
+        p_venta_id: venta.id
+      });
+
+      if (rpcError) {
+        console.error('❌ Error en RPC de eliminación:', rpcError);
+        throw rpcError;
+      }
       
-      // Verificar permisos primero
-      console.log('🔐 Verificando permisos de eliminación...');
-      const { data: ventaTest, error: testError } = await supabase
-        .from('ventas')
-        .select('id, id_usuario')
-        .eq('id', venta.id)
-        .single();
+      // La función RPC devuelve un objeto json { success: boolean, message: string }
+      // Pero Supabase lo devuelve como 'data'. Si la función retorna JSON, data es el JSON.
+      // TypeScript podría no inferirlo bien sin un cast o un tipo genérico en rpc.
+      const result = data as any;
 
-      if (testError) {
-        console.error('❌ Error al verificar permisos:', testError);
-        throw new Error(`Error de permisos: ${testError.message}`);
+      if (!result || !result.success) {
+        throw new Error(result?.message || 'Error al eliminar la venta');
       }
 
-      if (!ventaTest) {
-        throw new Error('No se encontró la venta para verificar permisos');
-      }
-
-      console.log('✅ Permisos verificados, venta encontrada:', ventaTest);
-      
-      // Primero restaurar el stock de todos los productos vendidos
-      if (venta.detalle_venta && venta.detalle_venta.length > 0) {
-        console.log('📦 Restaurando stock de', venta.detalle_venta.length, 'productos...');
-        for (const detalle of venta.detalle_venta) {
-          await restaurarStockProducto(detalle.id_producto, detalle.cantidad);
-        }
-        console.log('✅ Stock restaurado exitosamente');
-      }
-
-      // Luego eliminar detalles de venta
-      console.log('🗑️ Eliminando detalles de venta...');
-      const { data: detalleResult, error: detalleError } = await supabase
-        .from('detalle_venta')
-        .delete()
-        .eq('id_venta', venta.id)
-        .select(); // Agregar select para ver qué se eliminó
-
-      if (detalleError) {
-        console.error('❌ Error al eliminar detalles:', detalleError);
-        throw detalleError;
-      }
-
-      console.log('✅ Detalles eliminados:', detalleResult);
-
-      // Finalmente eliminar la venta
-      console.log('🗑️ Eliminando venta principal...');
-      const { data: ventaResult, error: ventaError } = await supabase
-        .from('ventas')
-        .delete()
-        .eq('id', venta.id)
-        .select(); // Agregar select para ver qué se eliminó
-
-      if (ventaError) {
-        console.error('❌ Error al eliminar venta:', ventaError);
-        throw ventaError;
-      }
-
-      console.log('✅ Venta eliminada:', ventaResult);
-
-      // Verificar que realmente se eliminó
-      // En Supabase, cuando se elimina un registro, se retorna un array vacío si fue exitoso
-      if (ventaResult === undefined) {
-        throw new Error('Error en la respuesta de eliminación de la base de datos');
-      }
-
-      console.log('✅ Venta eliminada exitosamente de la base de datos');
+      console.log('✅ Venta eliminada exitosamente (RPC)');
 
       dispatch('deleted', { ventaId: venta.id });
       
@@ -185,41 +141,76 @@
     }
   }
 
-  // Función para restaurar stock de un producto
-  async function restaurarStockProducto(idProducto: number, cantidad: number) {
-    try {
-      // Obtener el almacén del producto
-      const { data: almacenData, error: almacenError } = await supabase
-        .from('stock')
-        .select('id_almacen, cantidad')
-        .eq('id_producto', idProducto)
-        .limit(1);
+  // Comentamos o eliminamos esta función ya que ahora se maneja en el backend
+  // async function restaurarStockProducto...
 
-      if (almacenError) throw almacenError;
 
-      if (!almacenData || almacenData.length === 0) {
-        console.warn(`No se encontró información de almacén para el producto ${idProducto}`);
+
+
+  let confirmingDeleteId: number | null = null;
+
+  async function handleReturnProduct(detalle: any) {
+    // Si no estamos confirmando este producto específico, activamos el modo confirmación
+    if (confirmingDeleteId !== detalle.id) {
+        confirmingDeleteId = detalle.id;
+        // Resetear después de 3 segundos si no confirma
+        setTimeout(() => {
+            if (confirmingDeleteId === detalle.id) confirmingDeleteId = null;
+        }, 3000);
         return;
+    }
+
+    // Si ya estaba en modo confirmación, procedemos
+    confirmingDeleteId = null; 
+
+    if (!detalle.id) {
+        console.error('❌ Error: El detalle no tiene ID:', detalle);
+        return;
+    }
+
+    loading = true;
+    error = '';
+
+    try {
+      console.log('🔄 Llamando a RPC return_sale_product con ID:', detalle.id);
+
+      const { data, error: rpcError } = await supabase.rpc('return_sale_product', {
+        p_detalle_id: detalle.id
+      });
+
+      if (rpcError) throw rpcError;
+
+      const result = data as any;
+      if (!result || !result.success) {
+        throw new Error(result?.message || 'Error al devolver el producto');
       }
 
-      const idAlmacen = almacenData[0].id_almacen;
-      const stockActual = almacenData[0].cantidad;
+      console.log('✅ Éxito confirmado. Actualizando UI...');
 
-      // Restaurar el stock sumando la cantidad vendida
-      const { error: updateError } = await supabase
-        .from('stock')
-        .update({ 
-          cantidad: stockActual + cantidad 
-        })
-        .eq('id_producto', idProducto)
-        .eq('id_almacen', idAlmacen);
+      // Actualizar estado local
+      if (venta && venta.detalle_venta) {
+        venta.detalle_venta = venta.detalle_venta.filter((d: any) => d.id !== detalle.id);
+        
+        // Recalcular total venta localmente para reflejo inmediato
+        venta.monto_total -= detalle.total;
+        
+        // Si no quedan productos, quizás cerrar modal o mostrar aviso
+        if (venta.detalle_venta.length === 0) {
+          dispatch('deleted', { ventaId: venta.id }); 
+          close();
+          return;
+        }
 
-      if (updateError) throw updateError;
+        // Emitir evento de guardado para recargar lista padre
+        dispatch('saved', { venta: { ...venta } });
+      }
 
-      console.log(`Stock restaurado para producto ${idProducto}: +${cantidad} (nuevo total: ${stockActual + cantidad})`);
     } catch (err: any) {
-      console.error(`Error al restaurar stock del producto ${idProducto}:`, err);
-      throw new Error(`Error al restaurar stock del producto: ${err.message}`);
+      console.error('❌ Excepción atrapada:', err);
+      // alert('Error al devolver: ' + (err.message || 'Desconocido')); // Opcional
+      error = err.message || 'Error al devolver el producto';
+    } finally {
+      loading = false;
     }
   }
 
@@ -298,6 +289,56 @@
         </div>
 
         {#if mode === 'edit'}
+          <!-- Lista de Productos -->
+          <div class="mb-6">
+            <h3 class="text-sm font-medium text-gray-700 mb-3 flex items-center">
+              <Package class="h-4 w-4 mr-2" />
+              Productos en la venta
+            </h3>
+            <div class="bg-white border rounded-lg overflow-hidden">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                    <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Cant.</th>
+                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acción</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  {#if venta.detalle_venta}
+                    {#each venta.detalle_venta as detalle}
+                      <tr>
+                        <td class="px-3 py-2 text-sm text-gray-900">
+                          <div class="font-medium">{detalle.productos?.nombre || 'Producto'}</div>
+                          {#if detalle.observacion}
+                            <div class="text-xs text-gray-500">{detalle.observacion}</div>
+                          {/if}
+                        </td>
+                        <td class="px-3 py-2 text-sm text-gray-900 text-center">{detalle.cantidad}</td>
+                        <td class="px-3 py-2 text-sm text-gray-900 text-right">{detalle.total.toFixed(2)}</td>
+                        <td class="px-3 py-2 text-right">
+                          <button
+                            class="{confirmingDeleteId === detalle.id ? 'bg-red-600 text-white hover:bg-red-700' : 'text-danger-600 hover:text-danger-900 bg-danger-50 hover:bg-danger-100'} p-1 rounded transition-colors flex items-center gap-1"
+                            on:click={() => handleReturnProduct(detalle)}
+                            title={confirmingDeleteId === detalle.id ? "Click para confirmar" : "Devolver producto"}
+                            disabled={loading}
+                          >
+                            {#if confirmingDeleteId === detalle.id}
+                                <spam class="text-xs font-bold px-1">Confirmar?</spam>
+                            {:else}
+                                <Trash2 class="h-4 w-4" />
+                            {/if}
+                          </button>
+                        </td>
+                      </tr>
+                    {/each}
+                  {/if}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- Formulario de edición -->
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">

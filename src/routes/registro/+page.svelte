@@ -50,7 +50,7 @@
 </script>
 
 <svelte:head>
-  <title>Registro - POS Ventas</title>
+  <title>Registro - SIAL pro</title>
 </svelte:head>
 
 <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 py-12 px-4 sm:px-6 lg:px-8">

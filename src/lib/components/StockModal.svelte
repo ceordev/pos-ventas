@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { X, Package, Plus, Minus, AlertTriangle } from 'lucide-svelte';
+  import { authStore } from '$lib/stores/auth';
 
   export let show = false;
   export let producto: any = null;
@@ -57,51 +58,16 @@
         ? parseFloat(cantidadAgregar) 
         : parseFloat(cantidadQuitar);
 
-      // Obtener el almacén del producto
-      const { data: almacenData, error: almacenError } = await supabase
-        .from('stock')
-        .select('id_almacen')
-        .eq('id_producto', producto.id)
-        .limit(1);
+      // Usar RPC para actualización atómica e historial
+      const { error: rpcError } = await supabase.rpc('actualizar_stock', {
+        _id_producto: producto.id,
+        _cantidad: cantidad,
+        _tipo_movimiento: operacion === 'agregar' ? 'ENTRADA' : 'SALIDA',
+        _motivo: motivo || (operacion === 'agregar' ? 'Ingreso de stock' : 'Retiro de stock'),
+        _id_usuario: $authStore.profile?.id
+      });
 
-      if (almacenError) throw almacenError;
-
-      if (!almacenData || almacenData.length === 0) {
-        throw new Error('No se encontró información de almacén para este producto');
-      }
-
-      const idAlmacen = almacenData[0].id_almacen;
-
-      if (operacion === 'agregar') {
-        // Agregar stock
-        const { error: updateError } = await supabase
-          .from('stock')
-          .update({ 
-            cantidad: stockActual + cantidad 
-          })
-          .eq('id_producto', producto.id)
-          .eq('id_almacen', idAlmacen);
-
-        if (updateError) throw updateError;
-      } else {
-        // Quitar stock
-        if (stockActual < cantidad) {
-          throw new Error('No hay suficiente stock para quitar');
-        }
-
-        const { error: updateError } = await supabase
-          .from('stock')
-          .update({ 
-            cantidad: stockActual - cantidad 
-          })
-          .eq('id_producto', producto.id)
-          .eq('id_almacen', idAlmacen);
-
-        if (updateError) throw updateError;
-      }
-
-      // Registrar movimiento de stock (opcional - para auditoría)
-      await registrarMovimientoStock(producto.id, operacion, cantidad, motivo);
+      if (rpcError) throw rpcError;
 
       dispatch('saved', { 
         nuevoStock: operacion === 'agregar' ? stockActual + cantidad : stockActual - cantidad 

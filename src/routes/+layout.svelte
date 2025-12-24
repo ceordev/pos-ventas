@@ -4,9 +4,11 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { Home, ShoppingCart, Package, Users, BarChart3, LogOut, Menu, X, Tag } from 'lucide-svelte';
+  import ProfileModal from '$lib/components/ProfileModal.svelte';
   
   let { children } = $props();
   let sidebarOpen = $state(false);
+  let showProfileModal = $state(false);
   
   // Verificar si es una página de autenticación usando $derived
   let isAuthPage = $derived($page.url.pathname === '/login' || $page.url.pathname === '/registro' || $page.url.pathname === '/onboarding');
@@ -45,6 +47,11 @@
   async function handleLogout() {
     await authService.signOut();
     goto('/login');
+  }
+
+  function openProfile() {
+    showProfileModal = true;
+    closeSidebar();
   }
   
   // Manejar redirecciones con efecto
@@ -85,7 +92,7 @@
     <!-- Sidebar -->
     <div class="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform {sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0">
       <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-        <h1 class="text-xl font-bold text-gray-900">POS Ventas</h1>
+        <h1 class="text-xl font-bold text-gray-900">SIAL pro</h1>
         <button class="lg:hidden" onclick={closeSidebar}>
           <X class="h-6 w-6 text-gray-500" />
         </button>
@@ -108,10 +115,11 @@
         
         <!-- Usuario y logout -->
         <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-          <div class="flex items-center mb-3">
+          <div class="flex items-center mb-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors" onclick={openProfile}>
             <div class="flex-1">
               <p class="text-sm font-medium text-gray-900">{$authStore.profile?.nombres}</p>
               <p class="text-xs text-gray-500 capitalize">{$authStore.profile?.role}</p>
+              <p class="text-xs text-primary-600 mt-1">Configurar Perfil</p>
             </div>
           </div>
           <button 
@@ -133,7 +141,7 @@
           <button onclick={toggleSidebar}>
             <Menu class="h-6 w-6 text-gray-500" />
           </button>
-          <h1 class="text-lg font-semibold text-gray-900">POS Ventas</h1>
+          <h1 class="text-lg font-semibold text-gray-900">SiAl pro</h1>
           <button 
             class="flex items-center text-red-600 hover:text-red-700"
             onclick={handleLogout}
@@ -145,14 +153,20 @@
       
       <!-- Contenido de la página -->
       <main class="flex-1">
-        {#if children}
-          {@render children()}
-        {/if}
+        {#key $page.url.pathname}
+          {#if children}
+            {@render children()}
+          {/if}
+        {/key}
       </main>
     </div>
   </div>
 {:else}
-  {#if children}
-    {@render children()}
-  {/if}
+  {#key $page.url.pathname}
+    {#if children}
+      {@render children()}
+    {/if}
+  {/key}
 {/if}
+
+<ProfileModal bind:show={showProfileModal} on:close={() => showProfileModal = false} />

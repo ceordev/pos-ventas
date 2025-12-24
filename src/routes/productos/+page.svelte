@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { 
     Plus, 
@@ -14,6 +14,8 @@
   } from 'lucide-svelte';
   import ProductoModal from '$lib/components/ProductoModal.svelte';
   import StockModal from '$lib/components/StockModal.svelte';
+  import StockHistoryModal from '$lib/components/StockHistoryModal.svelte';
+  import { History } from 'lucide-svelte';
 
   let loading = true;
   let productos: any[] = [];
@@ -23,9 +25,19 @@
   let selectedCategory: number | null = null;
   let showModal = false;
   let showStockModal = false;
+  let showStockHistoryModal = false;
   let editingProduct: any = null;
   let selectedProductForStock: any = null;
+  let selectedProductForHistory: any = null;
   let error = '';
+
+  // Infinite Scroll state
+  let page = 1;
+  const PAGE_SIZE = 10;
+  let hasMore = true;
+  let loadingMore = false;
+  let observer: IntersectionObserver;
+  let sentinel: HTMLElement;
 
   // Reactive filtering
   $: {
@@ -38,31 +50,78 @@
   }
 
   onMount(async () => {
+    loading = true;
+    page = 1;
     await Promise.all([
-      loadProductos(),
+      loadProductos(1, false),
       loadCategorias()
     ]);
     loading = false;
+    
+    // Esperar a que el DOM se actualice para que 'sentinel' exista
+    await tick();
+
+    // Setup Intersection Observer
+    observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !loading && !loadingMore && hasMore) {
+        loadMore();
+      }
+    }, { rootMargin: '100px' });
+
+    if (sentinel) {
+        observer.observe(sentinel);
+    }
+  });
+  
+  import { onDestroy } from 'svelte';
+  onDestroy(() => {
+    if (observer) observer.disconnect();
   });
 
-  async function loadProductos() {
+  async function loadMore() {
+    loadingMore = true;
+    const nextPage = page + 1;
+    await loadProductos(nextPage, true);
+    loadingMore = false;
+  }
+
+  async function loadProductos(pageNum: number = 1, append: boolean = false) {
     try {
-      const { data, error: dbError } = await supabase
+      const from = (pageNum - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, error: dbError, count } = await supabase
         .from('productos')
         .select(`
           *,
-          categorias(id, nombre),
-          stock(cantidad)
-        `)
-        .order('nombre');
+          categorias(id, nombre)
+        `, { count: 'exact' })
+        .order('nombre')
+        .range(from, to);
 
       if (dbError) throw dbError;
       
-      productos = data.map(producto => ({
+      const newProducts = data.map(producto => ({
         ...producto,
         categoria_nombre: producto.categorias?.nombre || 'Sin categoría',
-        stock: producto.stock?.[0]?.cantidad || 0
+        stock: producto.stock || 0
       }));
+
+      if (append) {
+        productos = [...productos, ...newProducts];
+        page = pageNum;
+      } else {
+        productos = newProducts;
+        page = 1;
+      }
+      
+      // Update hasMore flag
+      if (count !== null) {
+        hasMore = productos.length < count;
+      } else {
+        hasMore = newProducts.length === PAGE_SIZE;
+      }
+
     } catch (err: any) {
       error = err.message || 'Error al cargar productos';
       console.error('Error loading productos:', err);
@@ -102,6 +161,11 @@
   function openStockModal(producto: any) {
     selectedProductForStock = producto;
     showStockModal = true;
+  }
+
+  function openStockHistoryModal(producto: any) {
+    selectedProductForHistory = producto;
+    showStockHistoryModal = true;
   }
 
   async function handleStockSaved(event: any) {
@@ -358,6 +422,13 @@
                         <PackageCheck class="h-4 w-4" />
                       </button>
                       <button
+                        class="text-blue-600 hover:text-blue-900 p-1"
+                        on:click={() => openStockHistoryModal(producto)}
+                        title="Ver historial de stock"
+                      >
+                        <History class="h-4 w-4" />
+                      </button>
+                      <button
                         class="text-primary-600 hover:text-primary-900 p-1"
                         on:click={() => openEditModal(producto)}
                         title="Editar producto"
@@ -375,8 +446,21 @@
                   </td>
                 </tr>
               {/each}
+              
+              <!-- Sentinel for Infinite Scroll - Table Row -->
+              <tr bind:this={sentinel} class="h-4">
+                <td colspan="6" class="p-0 border-0">
+                  <div class="h-4 w-full bg-transparent"></div>
+                </td>
+              </tr>
             </tbody>
           </table>
+          
+          {#if loadingMore}
+            <div class="flex justify-center py-4 bg-gray-50 border-t">
+              <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -401,5 +485,14 @@
     producto={selectedProductForStock}
     on:close={() => showStockModal = false}
     on:saved={handleStockSaved}
+  />
+{/if}
+
+<!-- Modal de historial -->
+{#if showStockHistoryModal}
+  <StockHistoryModal
+    show={showStockHistoryModal}
+    producto={selectedProductForHistory}
+    on:close={() => showStockHistoryModal = false}
   />
 {/if}

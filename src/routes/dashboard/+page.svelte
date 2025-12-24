@@ -18,7 +18,8 @@
   let loading = true;
   let dashboardData: any = null;
   let error = '';
-  let selectedPeriod = '7'; // días
+  let selectedPeriod = 'month'; // Por defecto: Este Mes
+  let dateRangeLabel = '';
 
   onMount(async () => {
     await loadDashboardData();
@@ -28,8 +29,16 @@
   async function loadDashboardData() {
     try {
       const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(endDate.getDate() - parseInt(selectedPeriod));
+      let startDate = new Date();
+      
+      if (selectedPeriod === 'month') {
+        // Primer día del mes actual
+        startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+      } else {
+        startDate.setDate(endDate.getDate() - parseInt(selectedPeriod));
+      }
+      
+      updateDateRangeLabel(startDate, endDate);
 
       const { data, error: dbError } = await supabase.rpc('get_dashboard_stats', {
         _fecha_inicio: startDate.toISOString().split('T')[0],
@@ -38,12 +47,16 @@
 
       if (dbError) throw dbError;
       
-      
       dashboardData = Array.isArray(data) ? data[0] : data;
     } catch (err: any) {
       error = err.message || 'Error al cargar datos del inicio';
       console.error('Error loading inicio:', err);
     }
+  }
+  
+  function updateDateRangeLabel(start: Date, end: Date) {
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
+    dateRangeLabel = `Del ${start.toLocaleDateString('es-ES', options)} al ${end.toLocaleDateString('es-ES', options)}`;
   }
 
   async function handlePeriodChange(event: Event) {
@@ -111,6 +124,7 @@
               <option value="7">Últimos 7 días</option>
               <option value="30">Últimos 30 días</option>
               <option value="90">Últimos 90 días</option>
+              <option value="month">Este Mes</option>
             </select>
           </div>
           
@@ -203,10 +217,13 @@
         <!-- Ventas por Cajero -->
         <div class="card p-6">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-              <Users class="h-5 w-5 mr-2" />
-              Ventas por Cajero
-            </h3>
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                <Users class="h-5 w-5 mr-2" />
+                Ventas por Cajero
+                </h3>
+                <p class="text-xs text-gray-500 mt-1 ml-7">{dateRangeLabel}</p>
+            </div>
           </div>
           
           {#if dashboardData.ventas_por_cajero && dashboardData.ventas_por_cajero.length > 0}

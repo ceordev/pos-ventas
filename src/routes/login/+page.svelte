@@ -34,7 +34,7 @@
 </script>
 
 <svelte:head>
-  <title>Iniciar Sesión - POS Ventas</title>
+  <title>Iniciar Sesión - SIAL pro</title>
 </svelte:head>
 
 <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 py-12 px-4 sm:px-6 lg:px-8">
@@ -47,7 +47,7 @@
       </div>
       <h2 class="mt-6 text-3xl font-bold text-gray-900">Iniciar Sesión</h2>
       <p class="mt-2 text-sm text-gray-600">
-        Accede a tu sistema POS
+        Accede a tu sistema SiAl pro
       </p>
     </div>
 

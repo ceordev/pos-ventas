@@ -52,6 +52,7 @@
         .select(`
           *,
           detalle_venta(
+            id,
             id_producto,
             cantidad,
             precio_venta_unitario,
@@ -67,37 +68,33 @@
       if (fechaFiltro) {
         console.log('🔍 DEBUG FILTRO - Fecha original:', fechaFiltro);
         
-        const fechaSeleccionada = new Date(fechaFiltro);
-        console.log('🔍 DEBUG FILTRO - Fecha seleccionada:', fechaSeleccionada);
-        console.log('🔍 DEBUG FILTRO - Fecha seleccionada ISO:', fechaSeleccionada.toISOString());
+        // Parsear manualmente la fecha del input (YYYY-MM-DD) para evitar problemas de timezone del navegador
+        const [year, month, day] = fechaFiltro.split('-').map(Number);
         
-        // Crear rango de fechas en zona horaria de Bolivia
-        const inicioDia = new Date(fechaSeleccionada);
-        inicioDia.setHours(0, 0, 0, 0);
-        
-        const finDia = new Date(fechaSeleccionada);
-        finDia.setHours(23, 59, 59, 999);
-        
-        console.log('🔍 DEBUG FILTRO - Rango Bolivia:', {
-          inicio: inicioDia.toLocaleString('es-ES'),
-          fin: finDia.toLocaleString('es-ES')
-        });
-        
-        // SOLUCIÓN TEMPORAL: Ajustar el rango para compensar el desfase
+        console.log('🔍 DEBUG FILTRO - Componentes:', { year, month, day });
+
+        // SOLUCIÓN TEMPORAL: Ajustar el rango para compensar el desfase (Bolivia UTC-4)
         // Como la BD almacena en UTC pero queremos filtrar por día de Bolivia
+        // 00:00 Bolivia = 04:00 UTC
         const inicioUTC = new Date(Date.UTC(
-          fechaSeleccionada.getFullYear(),
-          fechaSeleccionada.getMonth(),
-          fechaSeleccionada.getDate() - 1,  // Restar 1 día para compensar
+          year,
+          month - 1, // Meses en JS son 0-11
+          day, 
           4, 0, 0, 0
         ));
         
+        // 23:59:59 Bolivia = 03:59:59 UTC (día siguiente)
         const finUTC = new Date(Date.UTC(
-          fechaSeleccionada.getFullYear(),
-          fechaSeleccionada.getMonth(),
-          fechaSeleccionada.getDate() - 1,  // Restar 1 día para compensar
-          27, 59, 59, 999
+          year,
+          month - 1,
+          day,
+          27, 59, 59, 999 // 27 = 24 + 3 (03:00 AM del día siguiente)
         ));
+        
+        console.log('🔍 DEBUG FILTRO - Rango UTC calculado:', {
+          inicio: inicioUTC.toISOString(),
+          fin: finUTC.toISOString()
+        });
         
         console.log('🔍 DEBUG FILTRO - Rango UTC compensado:', {
           inicio: inicioUTC.toISOString(),
@@ -174,9 +171,12 @@
 
   async function handleVentaSaved(event: CustomEvent) {
     const { venta: updatedVenta } = event.detail;
-    console.log('💾 Venta editada, recargando datos...');
+    console.log('💾 Venta editada, actualizando UI local...', updatedVenta);
     
-    // Recargar los datos completos para obtener observaciones actualizadas
+    // Actualizar inmediatamente el estado local para reflejo instantáneo
+    ventas = ventas.map(v => v.id === updatedVenta.id ? updatedVenta : v);
+    
+    // Recargar los datos completos para asegurar consistencia
     await loadHistorialVentas();
   }
 

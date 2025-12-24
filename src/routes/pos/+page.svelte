@@ -2,8 +2,22 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
-  import { posService, products, categories, cart, filteredProducts, cartTotal, cartItemCount, cajaAbierta, selectedCategory, searchTerm } from '$lib/stores/pos';
-  import { Search, ShoppingCart, DollarSign, QrCode, X, Plus, Minus, CreditCard, History, Tag } from 'lucide-svelte';
+  import { 
+    posService, 
+    products, 
+    categories, 
+    cart, 
+    filteredProducts, 
+    cartTotal, 
+    cartItemCount, 
+    cajaAbierta, 
+    selectedCategory, 
+    searchTerm,
+    currentPage,
+    totalProducts,
+    isLoadingProducts 
+  } from '$lib/stores/pos';
+  import { Search, ShoppingCart, DollarSign, QrCode, X, Plus, Minus, CreditCard, History, Tag, ChevronLeft, ChevronRight, Loader2 } from 'lucide-svelte';
   import AperturaCajaModal from '$lib/components/AperturaCajaModal.svelte';
   import PagoModal from '$lib/components/PagoModal.svelte';
   import CierreCajaModal from '$lib/components/CierreCajaModal.svelte';
@@ -15,15 +29,42 @@
   let showDiscountModal = false;
   let selectedItemForDiscount: any = null;
   let loading = true;
+  let searchTimeout: any;
+
+  // Infinite Scroll Observer
+  let observer: IntersectionObserver;
+  let sentinel: HTMLElement;
+
+  async function loadMore() {
+    if ($isLoadingProducts || $products.length >= $totalProducts) return;
+    
+    const nextPage = $currentPage + 1;
+    await posService.searchProducts($searchTerm, $selectedCategory, nextPage, true);
+  }
 
   onMount(async () => {
+    loading = true;
     await loadData();
     loading = false;
+    
+    // Setup Intersection Observer
+    observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        loadMore();
+      }
+    }, { rootMargin: '100px' });
+
+    if (sentinel) observer.observe(sentinel);
+  });
+  
+  import { onDestroy } from 'svelte';
+  onDestroy(() => {
+    if (observer) observer.disconnect();
   });
 
   async function loadData() {
     await Promise.all([
-      posService.loadProducts(),
+      posService.loadProducts(), // Now calls searchProducts internally
       posService.loadCategories(),
       posService.checkCajaAbierta()
     ]);
@@ -47,12 +88,28 @@
 
   function handleCategoryFilter(categoryId: number | null) {
     selectedCategory.set(categoryId);
+    // Reset to page 1 when changing category
+    posService.searchProducts($searchTerm, categoryId, 1);
   }
 
   function handleSearch(event: Event) {
     const target = event.target as HTMLInputElement;
     if (target) {
-      searchTerm.set(target.value);
+      const value = target.value;
+      searchTerm.set(value);
+      
+      // Debounce search
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        posService.searchProducts(value, $selectedCategory, 1);
+      }, 500);
+    }
+  }
+  
+  function changePage(delta: number) {
+    const newPage = $currentPage + delta;
+    if (newPage >= 1) {
+      posService.searchProducts($searchTerm, $selectedCategory, newPage);
     }
   }
 
@@ -119,7 +176,7 @@
 </script>
 
 <svelte:head>
-  <title>POS - Punto de Venta</title>
+  <title>SIAL pro - Punto de Venta</title>
 </svelte:head>
 
 {#if loading}
@@ -218,35 +275,71 @@
                 </button>
               {/each}
             </div>
-            <!-- Indicador de scroll -->
-            <div class="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gray-200 to-transparent opacity-50 pointer-events-none"></div>
           </div>
         </div>
 
         <!-- Grid de productos -->
-        <div class="flex-1 p-4 overflow-y-auto">
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {#each $filteredProducts as product}
-              <button
-                class="card p-4 hover:shadow-md transition-shadow text-left {(product.stock || 0) <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}"
-                on:click={() => handleProductClick(product)}
-                disabled={(product.stock || 0) <= 0}
+        <div class="flex-1 p-4 overflow-y-auto relative">
+          {#if $isLoadingProducts && $products.length === 0}
+             <div class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+                <Loader2 class="h-10 w-10 text-primary-600 animate-spin" />
+             </div>
+          {/if}
+
+          {#if $filteredProducts.length === 0 && !$isLoadingProducts}
+             <div class="h-full flex flex-col items-center justify-center text-gray-500">
+               <div class="text-4xl mb-2">📦</div>
+               <p>No se encontraron productos</p>
+             </div>
+          {:else}
+             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-4">
+               {#each $filteredProducts as product}
+                 <button
+                   class="card p-4 hover:shadow-md transition-shadow text-left {(product.stock || 0) <= 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}"
+                   on:click={() => handleProductClick(product)}
+                   disabled={(product.stock || 0) <= 0}
+                 >
+                   <div class="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
+                     {#if product.imagen_url}
+                       <img src={product.imagen_url} alt={product.nombre} class="w-full h-full object-cover rounded-lg" />
+                     {:else}
+                       <div class="text-gray-400 text-2xl">📦</div>
+                     {/if}
+                   </div>
+                   <h3 class="font-medium text-sm text-gray-900 mb-1 line-clamp-2">{product.nombre}</h3>
+                   <p class="text-lg font-bold text-primary-600 mb-1">{product.precio_venta.toFixed(2)}</p>
+                   <p class="text-xs text-gray-500">Stock: {product.stock || 0}</p>
+                 </button>
+               {/each}
+             </div>
+          {/if}
+        </div>
+        
+        <!-- Paginación -->
+        <div class="bg-white p-3 border-t flex items-center justify-between">
+           <div class="text-sm text-gray-500">
+              Total: {$totalProducts} productos
+           </div>
+           <div class="flex items-center space-x-2">
+              <button 
+                 class="p-2 rounded-md border enabled:hover:bg-gray-50 disabled:opacity-50"
+                 disabled={$currentPage === 1 || $isLoadingProducts}
+                 on:click={() => changePage(-1)}
               >
-                <div class="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
-                  {#if product.imagen_url}
-                    <img src={product.imagen_url} alt={product.nombre} class="w-full h-full object-cover rounded-lg" />
-                  {:else}
-                    <div class="text-gray-400 text-2xl">📦</div>
-                  {/if}
-                </div>
-                <h3 class="font-medium text-sm text-gray-900 mb-1 line-clamp-2">{product.nombre}</h3>
-                <p class="text-lg font-bold text-primary-600 mb-1">{product.precio_venta.toFixed(2)}</p>
-                <p class="text-xs text-gray-500">Stock: {product.stock || 0}</p>
+                 <ChevronLeft class="h-5 w-5" />
               </button>
-            {/each}
-          </div>
+              <span class="text-sm font-medium">Página {$currentPage}</span>
+              <button 
+                 class="p-2 rounded-md border enabled:hover:bg-gray-50 disabled:opacity-50"
+                 disabled={$filteredProducts.length < 20 && ($totalProducts <= $currentPage * 20)} 
+                 on:click={() => changePage(1)}
+              >
+                 <ChevronRight class="h-5 w-5" />
+              </button>
+           </div>
         </div>
       </div>
+
 
       <!-- Panel Derecho - Carrito -->
       <div class="w-80 lg:w-96 bg-white border-l flex flex-col">

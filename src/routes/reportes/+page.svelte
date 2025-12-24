@@ -24,6 +24,7 @@
 
   let loading = true;
   let ventasData: any[] = [];
+  let filteredVentas: any[] = [];
   let totalesData: any = null;
   let error = '';
   
@@ -50,7 +51,7 @@
   $: totalPages = Math.ceil(totalItems / itemsPerPage);
   $: startIndex = (currentPage - 1) * itemsPerPage;
   $: endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  $: paginatedVentas = ventasData.slice(startIndex, endIndex);
+  $: paginatedVentas = filteredVentas.slice(startIndex, endIndex);
 
   onMount(async () => {
     // Establecer fechas por defecto (últimos 30 días)
@@ -92,22 +93,24 @@
       let fechaFinAjustada = fechaFin;
       
       if (fechaInicio && fechaFin) {
-        // Crear fechas en UTC para compensar el desfase
-        const inicioDate = new Date(fechaInicio);
-        const finDate = new Date(fechaFin);
-        
-        // Ajustar para compensar el desfase de zona horaria
+        // Parsear manualmente para evitar problemas de timezone "YYYY-MM-DD"
+        const [yearIni, monthIni, dayIni] = fechaInicio.split('-').map(Number);
+        const [yearFin, monthFin, dayFin] = fechaFin.split('-').map(Number);
+
+        // Ajustar para compensar el desfase de zona horaria (Bolivia UTC-4)
+        // 00:00 Bolivia = 04:00 UTC
         const inicioUTC = new Date(Date.UTC(
-          inicioDate.getFullYear(),
-          inicioDate.getMonth(),
-          inicioDate.getDate() - 1,  // Restar 1 día para compensar
+          yearIni,
+          monthIni - 1, // Meses 0-11
+          dayIni, 
           4, 0, 0, 0
         ));
         
+        // 23:59:59 Bolivia = 03:59:59 UTC (día siguiente) -> usamos 27:59:59 del mismo día para que overflow
         const finUTC = new Date(Date.UTC(
-          finDate.getFullYear(),
-          finDate.getMonth(),
-          finDate.getDate() - 1,  // Restar 1 día para compensar
+          yearFin,
+          monthFin - 1,
+          dayFin,
           27, 59, 59, 999
         ));
         
@@ -164,6 +167,7 @@
       filtered = filtered.filter(venta => venta.tipo_pago === metodoPagoFiltro);
     }
     
+    filteredVentas = filtered;
     totalItems = filtered.length;
     currentPage = 1; // Reset to first page when filtering
   }
@@ -331,7 +335,7 @@
           <select bind:value={cajeroFiltro} class="input" disabled={loading}>
             <option value="">Todos los cajeros</option>
             {#each cajeros as cajero}
-              <option value={cajero.id}>{cajero.nombres}</option>
+              <option value={cajero.nombres}>{cajero.nombres}</option>
             {/each}
           </select>
         </div>
