@@ -78,7 +78,8 @@ class POSService {
           id_categoria,
           categorias(nombre),
           stock
-        `, { count: 'exact' });
+        `, { count: 'exact' })
+                .eq('activo', true);
 
             // Apply filters
             if (categoryId) {

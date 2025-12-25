@@ -183,9 +183,12 @@
     }
 
     const result = data[0];
-    if (!result.producto_id) {
+    if (!result.id_producto) { // Updated to id_producto based on RPC return
       throw new Error(result.mensaje || 'Error al crear el producto');
     }
+
+    dispatch('success');
+    close();
   }
 
   async function updateProduct() {

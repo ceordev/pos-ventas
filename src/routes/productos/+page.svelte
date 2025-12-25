@@ -20,7 +20,8 @@
   let loading = true;
   let productos: any[] = [];
   let categorias: any[] = [];
-  let filteredProductos: any[] = [];
+
+  // filteredProductos removed
   let searchTerm = '';
   let selectedCategory: number | null = null;
   let showModal = false;
@@ -39,15 +40,9 @@
   let observer: IntersectionObserver;
   let sentinel: HTMLElement;
 
-  // Reactive filtering
-  $: {
-    filteredProductos = productos.filter(producto => {
-      const matchesSearch = producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           producto.codigo_barras?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === null || producto.id_categoria === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }
+  // Reactive filtering removed in favor of server-side search
+  let searchTimeout: NodeJS.Timeout;
+
 
   onMount(async () => {
     loading = true;
@@ -90,14 +85,24 @@
       const from = (pageNum - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data, error: dbError, count } = await supabase
+      let query = supabase
         .from('productos')
         .select(`
           *,
           categorias(id, nombre)
         `, { count: 'exact' })
         .order('nombre')
-        .range(from, to);
+        .eq('activo', true); // Filter by active products
+
+      if (searchTerm) {
+        query = query.or(`nombre.ilike.%${searchTerm}%,codigo_barras.ilike.%${searchTerm}%`);
+      }
+      
+      if (selectedCategory) {
+        query = query.eq('id_categoria', selectedCategory);
+      }
+
+      const { data, error: dbError, count } = await query.range(from, to);
 
       if (dbError) throw dbError;
       
@@ -196,7 +201,7 @@
     try {
       const { error: dbError } = await supabase
         .from('productos')
-        .delete()
+        .update({ activo: false })
         .eq('id', producto.id);
 
       if (dbError) throw dbError;
@@ -210,15 +215,23 @@
   function handleSearch(event: Event) {
     const target = event.target as HTMLInputElement;
     searchTerm = target.value;
+    
+    // Debounce search
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        loadProductos(1, false);
+    }, 500);
   }
 
   function handleCategoryFilter(categoryId: number | null) {
     selectedCategory = categoryId;
+    loadProductos(1, false);
   }
 
   function clearFilters() {
     searchTerm = '';
     selectedCategory = null;
+    loadProductos(1, false);
   }
 
   function getStockStatus(stock: number) {
@@ -303,7 +316,7 @@
       
       <div class="mt-4 flex items-center text-sm text-gray-600">
         <Filter class="h-4 w-4 mr-2" />
-        Mostrando {filteredProductos.length} de {productos.length} productos
+        Mostrando {productos.length} productos
       </div>
     </div>
 
@@ -314,7 +327,7 @@
           <p class="text-gray-600">Cargando productos...</p>
         </div>
       </div>
-    {:else if filteredProductos.length === 0}
+    {:else if productos.length === 0}
       <div class="bg-white rounded-lg shadow-sm border p-12 text-center">
         <Package class="h-12 w-12 text-gray-300 mx-auto mb-4" />
         <h3 class="text-lg font-medium text-gray-900 mb-2">
@@ -360,7 +373,7 @@
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              {#each filteredProductos as producto}
+              {#each productos as producto}
                 {@const stockStatus = getStockStatus(producto.stock)}
                 <tr class="hover:bg-gray-50">
                   <td class="px-6 py-4 whitespace-nowrap">
