@@ -74,7 +74,8 @@
       const { data, error: dbError } = await supabase
         .from('usuarios')
         .select('id, nombres')
-        .eq('id_rol', 2); // Cajeros
+        .eq('id_rol', 2) // Cajeros
+        .eq('estado', 'ACTIVO'); // Only active users
 
       if (dbError) throw dbError;
       cajeros = data || [];

@@ -43,6 +43,7 @@
           *,
           roles(nombre)
         `)
+        .eq('estado', 'ACTIVO')
         .order('nombres');
 
       if (dbError) throw dbError;
@@ -86,7 +87,7 @@
     try {
       const { error: dbError } = await supabase
         .from('usuarios')
-        .delete()
+        .update({ estado: 'INACTIVO' })
         .eq('id', usuario.id);
 
       if (dbError) throw dbError;
