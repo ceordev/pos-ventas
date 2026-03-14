@@ -5,11 +5,11 @@ export interface Product {
     id: number;
     nombre: string;
     precio_venta: number;
-    precio_compra: number;
-    codigo_barras?: string;
-    imagen_url?: string;
-    id_categoria?: number;
-    categoria?: string;
+    precio_compra: number | null;
+    codigo_barras?: string | null;
+    imagen_url?: string | null;
+    id_categoria?: number | null;
+    categoria?: string | null;
     stock?: number;
 }
 
@@ -26,7 +26,7 @@ export interface CartItem {
 export interface Category {
     id: number;
     nombre: string;
-    color?: string;
+    color?: string | null;
 }
 
 export interface CajaAbierta {
@@ -395,6 +395,17 @@ class POSService {
             return { success: false, message: error.message || 'Error al obtener datos del cierre' };
         } finally {
             isLoadingProducts.set(false);
+        }
+    }
+
+    async verificarDescuadres() {
+        try {
+            const { data, error } = await supabase.rpc('verificar_descuadres_inventario' as any);
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error: any) {
+            console.error('Error verificando descuadres:', error);
+            return { success: false, message: error.message || 'Error al verificar descuadres' };
         }
     }
 

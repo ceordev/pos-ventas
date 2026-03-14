@@ -107,10 +107,15 @@ class AuthService {
     return data;
   }
 
-  async signUp(email: string, password: string) {
+  async signUp(email: string, password: string, nombre?: string) {
     const { data, error } = await supabase.auth.signUp({
       email,
-      password
+      password,
+      options: {
+        data: {
+          name: nombre || ''
+        }
+      }
     });
 
     if (error) throw error;

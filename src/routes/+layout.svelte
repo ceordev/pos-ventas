@@ -153,20 +153,16 @@
       
       <!-- Contenido de la página -->
       <main class="flex-1">
-        {#key $page.url.pathname}
-          {#if children}
-            {@render children()}
-          {/if}
-        {/key}
+        {#if children}
+          {@render children()}
+        {/if}
       </main>
     </div>
   </div>
 {:else}
-  {#key $page.url.pathname}
-    {#if children}
-      {@render children()}
-    {/if}
-  {/key}
+  {#if children}
+    {@render children()}
+  {/if}
 {/if}
 
 <ProfileModal bind:show={showProfileModal} on:close={() => showProfileModal = false} />

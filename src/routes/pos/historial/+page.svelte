@@ -106,9 +106,23 @@
           .lte('fecha', finUTC.toISOString());
       } else {
         // Por defecto, mostrar ventas de los últimos 7 días
-        const fechaInicio = new Date();
-        fechaInicio.setDate(fechaInicio.getDate() - 7);
-        query = query.gte('fecha', fechaInicio.toISOString());
+        const hoy = new Date();
+        const yearFin = hoy.getFullYear();
+        const monthFin = hoy.getMonth();
+        const dayFin = hoy.getDate();
+        
+        const inicioDate = new Date();
+        inicioDate.setDate(inicioDate.getDate() - 7);
+        const yearIni = inicioDate.getFullYear();
+        const monthIni = inicioDate.getMonth();
+        const dayIni = inicioDate.getDate();
+
+        const inicioUTC = new Date(Date.UTC(yearIni, monthIni, dayIni, 4, 0, 0, 0));
+        const finUTC = new Date(Date.UTC(yearFin, monthFin, dayFin, 27, 59, 59, 999));
+
+        query = query
+          .gte('fecha', inicioUTC.toISOString())
+          .lte('fecha', finUTC.toISOString());
       }
 
       const { data, error: dbError } = await query.order('fecha', { ascending: false });

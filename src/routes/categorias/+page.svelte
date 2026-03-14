@@ -18,6 +18,7 @@
   let showModal = false;
   let editingCategoria: any = null;
   let error = '';
+  let saving = false;
 
   // Form data
   let form = {
@@ -70,6 +71,7 @@
   async function handleCategoriaSaved() {
     showModal = false;
     editingCategoria = null;
+    saving = false;
     await loadCategorias();
   }
 
@@ -248,6 +250,9 @@
 
       <!-- Content -->
       <form on:submit|preventDefault={async () => {
+        if (saving) return;
+        saving = true;
+        
         try {
           if (editingCategoria) {
             const { data, error } = await supabase.rpc('actualizar_categoria', {
@@ -281,6 +286,7 @@
           }
           await handleCategoriaSaved();
         } catch (err: any) {
+          saving = false;
           alert(err.message || 'Error al guardar categoría');
         }
       }} class="p-6">
@@ -327,14 +333,21 @@
             type="button"
             class="btn-secondary flex-1"
             on:click={() => showModal = false}
+            disabled={saving}
           >
             Cancelar
           </button>
           <button
             type="submit"
             class="btn-primary flex-1"
+            disabled={saving}
           >
-            {editingCategoria ? 'Actualizar' : 'Crear'} Categoría
+            {#if saving}
+              <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              {editingCategoria ? 'Actualizando...' : 'Creando...'}
+            {:else}
+              {editingCategoria ? 'Actualizar' : 'Crear'} Categoría
+            {/if}
           </button>
         </div>
       </form>

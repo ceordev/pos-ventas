@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { posService } from '$lib/stores/pos';
-  import { X, DollarSign, TrendingUp, Calculator } from 'lucide-svelte';
+  import { X, DollarSign, TrendingUp, Calculator, AlertTriangle } from 'lucide-svelte';
 
   export let show = false;
   export let cajaAbierta: any = null;
@@ -14,6 +14,8 @@
   let loading = false;
   let error = '';
   let calculando = false;
+  let validandoInventario = false;
+  let descuadres: any[] = [];
   let resultadoCierre: any = null;
 
   function close() {
@@ -41,9 +43,18 @@
     }
 
     calculando = true;
+    validandoInventario = true;
     error = '';
+    descuadres = [];
 
     try {
+      // Validar inventario primero
+      const descuadresRes = await posService.verificarDescuadres();
+      if (descuadresRes.success && descuadresRes.data) {
+        descuadres = descuadresRes.data;
+      }
+      validandoInventario = false;
+
       // Obtener datos reales del cierre desde la base de datos
       const datosResult = await posService.obtenerDatosCierre(cajaAbierta.id_cierre_caja);
       
@@ -76,6 +87,7 @@
       };
     } catch (err: any) {
       error = err.message || 'Error al calcular el cierre';
+      validandoInventario = false;
     } finally {
       calculando = false;
     }
@@ -234,7 +246,7 @@
             >
               {#if calculando}
                 <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Calculando...
+                {validandoInventario ? 'Validando Inventario...' : 'Calculando...'}
               {:else}
                 Calcular Cierre
               {/if}
@@ -330,6 +342,38 @@
                   <strong>Atención:</strong> Hay una diferencia negativa de {Math.abs(resultadoCierre.diferencia).toFixed(2)}. 
                   Verifique el conteo de efectivo antes de confirmar el cierre.
                 </p>
+              </div>
+            {/if}
+
+            {#if descuadres.length > 0}
+              <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 class="font-semibold text-red-900 mb-2 flex items-center">
+                  <AlertTriangle class="h-5 w-5 mr-2" />
+                  Descuadres de Inventario Detectados
+                </h3>
+                <p class="text-sm text-red-700 mb-3">
+                  Se encontraron diferencias entre los movimientos registrados y el stock actual. Es obligatorio solucionar esto para evitar futuros problemas.
+                </p>
+                <div class="max-h-40 overflow-y-auto">
+                  <table class="min-w-full divide-y divide-red-200 text-sm">
+                    <thead>
+                      <tr>
+                        <th class="text-left py-2 font-medium text-red-800">Producto</th>
+                        <th class="text-right py-2 font-medium text-red-800">Diferencia</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-red-200">
+                      {#each descuadres as item}
+                        <tr>
+                          <td class="py-2 text-red-700">{item.nombre}</td>
+                          <td class="py-2 text-right font-medium text-red-800">
+                            {item.diferencia > 0 ? '+' : ''}{item.diferencia}
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             {/if}
           </div>

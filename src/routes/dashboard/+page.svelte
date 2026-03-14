@@ -28,21 +28,31 @@
 
   async function loadDashboardData() {
     try {
-      const endDate = new Date();
+      const today = new Date();
+      let startDateStr = '';
+      let endDateStr = today.toISOString().split('T')[0];
+      
       let startDate = new Date();
       
       if (selectedPeriod === 'month') {
-        // Primer día del mes actual
-        startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
       } else {
-        startDate.setDate(endDate.getDate() - parseInt(selectedPeriod));
+        startDate.setDate(today.getDate() - parseInt(selectedPeriod));
       }
       
-      updateDateRangeLabel(startDate, endDate);
+      startDateStr = startDate.toISOString().split('T')[0];
+      
+      updateDateRangeLabel(startDate, today);
+
+      const [yearIni, monthIni, dayIni] = startDateStr.split('-').map(Number);
+      const [yearFin, monthFin, dayFin] = endDateStr.split('-').map(Number);
+
+      const inicioUTC = new Date(Date.UTC(yearIni, monthIni - 1, dayIni, 4, 0, 0, 0));
+      const finUTC = new Date(Date.UTC(yearFin, monthFin - 1, dayFin, 27, 59, 59, 999));
 
       const { data, error: dbError } = await supabase.rpc('get_dashboard_stats', {
-        _fecha_inicio: startDate.toISOString().split('T')[0],
-        _fecha_fin: endDate.toISOString().split('T')[0]
+        _fecha_inicio: inicioUTC.toISOString(),
+        _fecha_fin: finUTC.toISOString()
       });
 
       if (dbError) throw dbError;
@@ -227,18 +237,46 @@
           </div>
           
           {#if dashboardData.ventas_por_cajero && dashboardData.ventas_por_cajero.length > 0}
-            <div class="space-y-3">
-              {#each dashboardData.ventas_por_cajero as cajero}
-                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p class="font-medium text-gray-900">{cajero.cajero}</p>
-                    <p class="text-sm text-gray-600">{cajero.ventas_count} ventas</p>
-                  </div>
-                  <div class="text-right">
-                    <p class="font-bold text-primary-600">{formatCurrency(cajero.total_ventas || 0)}</p>
-                  </div>
-                </div>
-              {/each}
+            <div class="overflow-x-auto mt-2">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cajero</th>
+                    <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Trxs</th>
+                    <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pares</th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-50">
+                  {#each dashboardData.ventas_por_cajero as cajero}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center">
+                          <div class="flex-shrink-0 h-8 w-8 bg-primary-100 rounded-full flex items-center justify-center">
+                            <span class="text-primary-700 font-bold text-sm">{cajero.cajero.charAt(0)}</span>
+                          </div>
+                          <div class="ml-3">
+                            <p class="font-medium text-gray-900 text-sm">{cajero.cajero}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3 whitespace-nowrap text-center">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                          {cajero.ventas_count}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 whitespace-nowrap text-center">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                          {cajero.total_pares || 0}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 whitespace-nowrap text-right font-semibold text-primary-600">
+                        {formatCurrency(cajero.total_ventas || 0)}
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
             </div>
           {:else}
             <p class="text-gray-500 text-center py-4">No hay datos de ventas por cajero</p>

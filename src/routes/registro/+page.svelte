@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { Mail, Lock, Eye, EyeOff, User } from 'lucide-svelte';
 
+  let nombre = '';
   let email = '';
   let password = '';
   let confirmPassword = '';
@@ -12,7 +13,7 @@
   let error = '';
 
   async function handleRegister() {
-    if (!email || !password || !confirmPassword) {
+    if (!nombre || !email || !password || !confirmPassword) {
       error = 'Por favor, completa todos los campos';
       return;
     }
@@ -31,7 +32,7 @@
     error = '';
 
     try {
-      await authService.signUp(email, password);
+      await authService.signUp(email, password, nombre);
       goto('/onboarding');
     } catch (err) {
       error = err instanceof Error ? err.message : 'Error al crear la cuenta';
@@ -67,6 +68,26 @@
 
     <form class="mt-8 space-y-6" on:submit|preventDefault={handleRegister}>
       <div class="space-y-4">
+        <div>
+          <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">
+            Nombre Completo
+          </label>
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <User class="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              id="nombre"
+              type="text"
+              bind:value={nombre}
+              required
+              class="input pl-10"
+              placeholder="Ej. Juan Pérez"
+              disabled={loading}
+            />
+          </div>
+        </div>
+
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
             Correo Electrónico

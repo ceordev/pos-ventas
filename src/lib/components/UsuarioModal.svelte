@@ -111,14 +111,15 @@
           if (authError) throw authError;
         }
       } else {
-        // Create new user using the create_cajero_user function
+        // Create new user using the create_app_user function
         const { data, error: dbError } = await supabase
-          .rpc('create_cajero_user', {
-            nombres: formData.nombres.trim(),
-            email: formData.email.trim(),
-            password: formData.password,
-            direccion: '',
-            telefono: ''
+          .rpc('create_app_user', {
+            p_nombres: formData.nombres.trim(),
+            p_email: formData.email.trim(),
+            p_password: formData.password,
+            p_direccion: '',
+            p_telefono: '',
+            p_rol_id: parseInt(formData.rol_id)
           });
 
         if (dbError) throw dbError;

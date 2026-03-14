@@ -397,16 +397,31 @@
                   <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-2">
                       <button
-                        class="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                        class="w-7 h-7 rounded-full flex-shrink-0 bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
                         on:click={() => updateQuantity(item.product.id, item.quantity - 1)}
                       >
                         <Minus class="h-3 w-3" />
                       </button>
                       
-                      <span class="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                      <input 
+                        type="number"
+                        min="1"
+                        max={item.product.stock || 1}
+                        value={item.quantity}
+                        on:change={(e) => {
+                           const target = e.target as HTMLInputElement;
+                           let newQty = parseInt(target.value);
+                           if (isNaN(newQty) || newQty < 1) newQty = 1;
+                           const maxStock = item.product.stock || 1;
+                           if (newQty > maxStock) newQty = maxStock;
+                           target.value = newQty.toString();
+                           updateQuantity(item.product.id, newQty);
+                        }}
+                        class="w-12 text-center text-sm font-medium border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 py-1"
+                      />
                       
                       <button
-                        class="w-7 h-7 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                        class="w-7 h-7 rounded-full flex-shrink-0 bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
                         on:click={() => updateQuantity(item.product.id, item.quantity + 1)}
                         disabled={item.quantity >= (item.product.stock || 0)}
                       >

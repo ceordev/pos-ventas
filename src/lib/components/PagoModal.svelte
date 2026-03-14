@@ -236,7 +236,7 @@
             <h3 class="text-sm font-medium text-gray-700 mb-4">Detalle de Productos</h3>
             
             <div class="space-y-3 flex-1">
-                {#each localItems as item}
+                {#each localItems as item, index}
                     <div class="bg-white p-3 rounded-lg border shadow-sm flex items-center justify-between gap-3">
                         <div class="flex-1">
                             <p class="font-medium text-sm text-gray-900 line-clamp-1">{item.product.nombre}</p>
@@ -254,8 +254,7 @@
                                 <span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                                 <input 
                                     type="number" 
-                                    bind:value={item.customPrice}
-                                    on:input={() => localItems = localItems}
+                                    bind:value={localItems[index].customPrice}
                                     min="0"
                                     step="0.01"
                                     class="w-full pl-5 pr-2 py-1 text-sm border rounded text-right font-medium focus:ring-1 focus:ring-primary-500 outline-none"

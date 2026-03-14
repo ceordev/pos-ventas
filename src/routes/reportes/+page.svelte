@@ -43,6 +43,45 @@
   let itemsPerPage = 20;
   let totalItems = 0;
   
+  // Meses del año para filtro rápido
+  const anioActual = new Date().getFullYear();
+  const mesActualNum = new Date().getMonth() + 1;
+  const mesesAnio = [
+    { num: 1, label: 'Enero' }, { num: 2, label: 'Febrero' }, { num: 3, label: 'Marzo' },
+    { num: 4, label: 'Abril' }, { num: 5, label: 'Mayo' }, { num: 6, label: 'Junio' },
+    { num: 7, label: 'Julio' }, { num: 8, label: 'Agosto' }, { num: 9, label: 'Septiembre' },
+    { num: 10, label: 'Octubre' }, { num: 11, label: 'Noviembre' }, { num: 12, label: 'Diciembre' }
+  ];
+  let mesesDisponibles = mesesAnio.slice(0, mesActualNum);
+
+  async function selectMonth(mesNum: number) {
+    const yyyy = anioActual;
+    const mm = String(mesNum).padStart(2, '0');
+    // Último día del mes
+    const endOfMonth = new Date(yyyy, mesNum, 0); 
+    const endDd = String(endOfMonth.getDate()).padStart(2, '0');
+    
+    fechaInicio = `${yyyy}-${mm}-01`;
+    fechaFin = `${yyyy}-${mm}-${endDd}`;
+    
+    await handleFilterChange();
+  }
+
+  $: activeMonthNum = (() => {
+     if (!fechaInicio || !fechaFin) return null;
+     const [yI, mI, dI] = fechaInicio.split('-');
+     const [yF, mF, dF] = fechaFin.split('-');
+     
+     if (yI === yF && mI === mF && dI === '01') {
+         const nMes = parseInt(mI, 10);
+         const endObj = new Date(parseInt(yI, 10), nMes, 0);
+         if (parseInt(dF, 10) === endObj.getDate()) {
+             return nMes;
+         }
+     }
+     return null;
+  })();
+
   // Modal de detalle
   let showDetailModal = false;
   let selectedVenta: any = null;
@@ -54,13 +93,15 @@
   $: paginatedVentas = filteredVentas.slice(startIndex, endIndex);
 
   onMount(async () => {
-    // Establecer fechas por defecto (últimos 30 días)
+    // Establecer fechas por defecto (mes actual completo)
     const today = new Date();
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(today.getDate() - 30);
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const endOfMonth = new Date(yyyy, today.getMonth() + 1, 0);
+    const endDd = String(endOfMonth.getDate()).padStart(2, '0');
     
-    fechaFin = today.toISOString().split('T')[0];
-    fechaInicio = thirtyDaysAgo.toISOString().split('T')[0];
+    fechaInicio = `${yyyy}-${mm}-01`;
+    fechaFin = `${yyyy}-${mm}-${endDd}`;
     
     await Promise.all([
       loadCajeros(),
@@ -142,14 +183,14 @@
       
       console.log('📊 Datos cargados:', {
         ventas: ventasResult?.length || 0,
-        totales: totalesResult
+        totales_crudos: totalesResult
       });
       
       ventasData = ventasResult || [];
-      totalesData = Array.isArray(totalesResult) ? totalesResult[0] : totalesResult;
+      // Ya no usamos la suma cruda del backend, calcularemos en client-side
       totalItems = ventasData.length;
       
-      // Aplicar filtros
+      // Aplicar filtros (esto también calculará los totales)
       applyFilters();
     } catch (err: any) {
       error = err.message || 'Error al cargar datos de reportes';
@@ -171,6 +212,32 @@
     filteredVentas = filtered;
     totalItems = filtered.length;
     currentPage = 1; // Reset to first page when filtering
+    
+    calculateTotals(filtered);
+  }
+
+  function calculateTotals(dataTarget: any[]) {
+    let tVendido = 0;
+    let tGanancia = 0;
+    let tPares = 0;
+
+    dataTarget.forEach(venta => {
+      tVendido += Number(venta.monto_total) || 0;
+      tGanancia += calcularGananciaVenta(venta);
+      
+      if (venta.detalles && Array.isArray(venta.detalles)) {
+         venta.detalles.forEach((d: any) => {
+             tPares += Number(d.cantidad) || 0;
+         });
+      }
+    });
+
+    totalesData = {
+      total_vendido: tVendido,
+      total_ganancia: tGanancia,
+      ventas_count: dataTarget.length,
+      total_pares: tPares
+    };
   }
 
   async function handleFilterChange() {
@@ -253,14 +320,17 @@
     }
     
     return venta.detalles.reduce((sum: number, detalle: any) => {
-      // La ganancia es el total menos el costo (cantidad * precio_compra)
-      // Asumimos que precio_compra_unitario está en el detalle o usamos una aproximación
-      const total = detalle.total || 0;
-      const cantidad = detalle.cantidad || 0;
-      const precioVenta = detalle.precio_venta_unitario || 0;
-      // Si no tenemos precio de compra, estimamos un margen del 30%
-      const costoEstimado = total * 0.7; // Asumiendo 30% de ganancia
-      return sum + (total - costoEstimado);
+      const total = parseFloat(detalle.total) || 0;
+      const cantidad = parseFloat(detalle.cantidad) || 0;
+      const precioCompra = parseFloat(detalle.precio_compra_unitario) || 0;
+      
+      if (precioCompra > 0) {
+        return sum + (total - (cantidad * precioCompra));
+      } else {
+         // Si no tiene precio de compra por alguna razón, usar margen del 30% como fallback
+         const costoEstimado = total * 0.7; 
+         return sum + (total - costoEstimado);
+      }
     }, 0);
   }
 </script>
@@ -367,6 +437,24 @@
           {/if}
         </div>
       </div>
+      
+      <!-- Tags de meses del año actual -->
+      <div class="mt-5 pt-5 border-t border-gray-100">
+        <p class="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wider flex items-center">
+           <Calendar class="h-3 w-3 mr-1" /> Filtros Rápidos ({anioActual})
+        </p>
+        <div class="flex flex-wrap gap-2">
+          {#each mesesDisponibles as mes}
+            <button
+              class="px-3 py-1.5 text-sm font-medium rounded-full transition-all duration-200 border cursor-pointer {activeMonthNum === mes.num ? 'bg-primary-600 text-white border-primary-600 shadow-sm transform scale-105' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400'}"
+              on:click={() => selectMonth(mes.num)}
+              disabled={loading}
+            >
+              {mes.label}
+            </button>
+          {/each}
+        </div>
+      </div>
     </div>
 
     {#if loading}
@@ -379,7 +467,7 @@
     {:else}
       <!-- Resumen de totales -->
       {#if totalesData}
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div class="card p-6">
             <div class="flex items-center">
               <div class="p-2 bg-primary-100 rounded-lg">
@@ -414,9 +502,23 @@
                 <ShoppingCart class="h-6 w-6 text-blue-600" />
               </div>
               <div class="ml-4">
-                <p class="text-sm font-medium text-gray-600">Número de Ventas</p>
+                <p class="text-sm font-medium text-gray-600">Total Transacciones</p>
                 <p class="text-2xl font-bold text-gray-900">
                   {totalesData.ventas_count || 0}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-6">
+            <div class="flex items-center">
+              <div class="p-2 bg-purple-100 rounded-lg">
+                <Package class="h-6 w-6 text-purple-600" />
+              </div>
+              <div class="ml-4">
+                <p class="text-sm font-medium text-gray-600">Pares / Items Vendidos</p>
+                <p class="text-2xl font-bold text-gray-900">
+                  {totalesData.total_pares || 0}
                 </p>
               </div>
             </div>
