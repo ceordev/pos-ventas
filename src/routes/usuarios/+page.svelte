@@ -118,8 +118,10 @@
     }
   }
 
-  function formatDate(dateString: string): string {
-    return new Date(dateString).toLocaleDateString();
+  function formatDate(dateString: string | null): string {
+    if (!dateString) return '---';
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? '---' : date.toLocaleDateString();
   }
 </script>
 
@@ -263,7 +265,7 @@
                     </span>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatDate(usuario.created_at)}
+                    {formatDate(usuario.fecharegistro)}
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div class="flex items-center justify-end space-x-2">

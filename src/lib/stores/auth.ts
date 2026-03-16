@@ -45,7 +45,9 @@ class AuthService {
     // Escuchar cambios de autenticación
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        this.loadUserProfile(session.user);
+        void (async () => {
+          await this.loadUserProfile(session.user);
+        })();
       } else {
         authStore.set({ user: null, profile: null, loading: false });
       }
@@ -82,7 +84,13 @@ class AuthService {
 
 
       const userProfile: UserProfile = {
-        ...profile,
+        id: profile.id,
+        nombres: profile.nombres,
+        usuario: profile.usuario,
+        direccion: profile.direccion || '',
+        telefono: profile.telefono || '',
+        id_rol: profile.id_rol,
+        estado: profile.estado || 'ACTIVO',
         role: (profile as any).roles.nombre
       };
 
@@ -132,7 +140,8 @@ class AuthService {
     direccion_fiscal: string;
     simbolo_moneda: string;
   }) {
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .rpc('crear_empresa', {
         _nombre: companyData.nombre,
         _direccion_fiscal: companyData.direccion_fiscal,

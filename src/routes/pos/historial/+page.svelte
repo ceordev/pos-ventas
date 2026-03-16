@@ -28,6 +28,7 @@
   let ventas: any[] = [];
   let totalVentas = 0;
   let totalGanancia = 0;
+  let totalParesVendidos = 0;
   let error = '';
   
   // Filtros
@@ -58,6 +59,9 @@
             precio_venta_unitario,
             precio_compra_unitario,
             total,
+            precio_original,
+            descuento_aplicado,
+            porcentaje_descuento,
             observacion,
             productos(nombre)
           )
@@ -138,12 +142,15 @@
       ventas = data || [];
       
       // Calcular totales
-      totalVentas = ventas.reduce((sum, venta) => sum + venta.monto_total, 0);
+      totalVentas = ventas.reduce((sum, venta) => sum + Number(venta.monto_total || 0), 0);
       totalGanancia = ventas.reduce((sum, venta) => {
         const gananciaVenta = venta.detalle_venta?.reduce((sumDetalle: number, detalle: any) => {
-          return sumDetalle + (detalle.total - (detalle.precio_compra_unitario || 0));
+          return sumDetalle + (Number(detalle.total || 0) - (Number(detalle.cantidad || 0) * Number(detalle.precio_compra_unitario || 0)));
         }, 0) || 0;
         return sum + gananciaVenta;
+      }, 0);
+      totalParesVendidos = ventas.reduce((sum, venta) => {
+        return sum + (venta.detalle_venta?.reduce((sumDetalle: number, detalle: any) => sumDetalle + Number(detalle.cantidad || 0), 0) || 0);
       }, 0);
 
     } catch (err: any) {
@@ -205,12 +212,15 @@
     
     console.log(`📊 Ventas antes: ${ventasAntes}, después: ${ventasDespues}`);
     // Recalcular totales
-    totalVentas = ventas.reduce((sum, venta) => sum + venta.monto_total, 0);
+    totalVentas = ventas.reduce((sum, venta) => sum + Number(venta.monto_total || 0), 0);
     totalGanancia = ventas.reduce((sum, venta) => {
       const gananciaVenta = venta.detalle_venta?.reduce((sumDetalle: number, detalle: any) => {
-        return sumDetalle + (detalle.total - (detalle.cantidad * detalle.precio_compra_unitario));
+        return sumDetalle + (Number(detalle.total || 0) - (Number(detalle.cantidad || 0) * Number(detalle.precio_compra_unitario || 0)));
       }, 0) || 0;
       return sum + gananciaVenta;
+    }, 0);
+    totalParesVendidos = ventas.reduce((sum, venta) => {
+      return sum + (venta.detalle_venta?.reduce((sumDetalle: number, detalle: any) => sumDetalle + Number(detalle.cantidad || 0), 0) || 0);
     }, 0);
     
     console.log('✅ Totales recalculados:', { totalVentas, totalGanancia });
@@ -228,7 +238,7 @@
 
   function calcularGananciaVenta(venta: any) {
     return venta.detalle_venta?.reduce((sum: number, detalle: any) => {
-      return sum + (detalle.total - (detalle.cantidad * (detalle.precio_compra_unitario || 0)));
+      return sum + (Number(detalle.total || 0) - (Number(detalle.cantidad || 0) * Number(detalle.precio_compra_unitario || 0)));
     }, 0) || 0;
   }
 
@@ -330,7 +340,7 @@
     {/if}
 
     <!-- Resumen de estadísticas -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <div class="bg-white rounded-lg shadow-sm border p-6">
         <div class="flex items-center">
           <div class="p-2 bg-primary-100 rounded-lg">
@@ -345,12 +355,24 @@
 
       <div class="bg-white rounded-lg shadow-sm border p-6">
         <div class="flex items-center">
+          <div class="p-2 bg-info-100 text-blue-600 bg-blue-100 rounded-lg">
+            <Package class="h-6 w-6 text-blue-600" />
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Pares Vendidos</p>
+            <p class="text-2xl font-bold text-gray-900">{totalParesVendidos}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border p-6">
+        <div class="flex items-center">
           <div class="p-2 bg-success-100 rounded-lg">
             <DollarSign class="h-6 w-6 text-success-600" />
           </div>
           <div class="ml-4">
             <p class="text-sm font-medium text-gray-600">Total Vendido</p>
-            <p class="text-2xl font-bold text-gray-900">{totalVentas.toFixed(2)}</p>
+            <p class="text-2xl font-bold text-gray-900">{Number(totalVentas || 0).toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -358,11 +380,11 @@
       <div class="bg-white rounded-lg shadow-sm border p-6">
         <div class="flex items-center">
           <div class="p-2 bg-warning-100 rounded-lg">
-            <Package class="h-6 w-6 text-warning-600" />
+            <DollarSign class="h-6 w-6 text-warning-600" />
           </div>
           <div class="ml-4">
             <p class="text-sm font-medium text-gray-600">Ganancia Generada</p>
-            <p class="text-2xl font-bold text-gray-900">{totalGanancia.toFixed(2)}</p>
+            <p class="text-2xl font-bold text-gray-900">{Number(totalGanancia || 0).toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -429,19 +451,19 @@
               <div class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p class="text-sm text-gray-600">Total Venta</p>
-                  <p class="font-semibold text-lg text-gray-900">{venta.monto_total.toFixed(2)}</p>
+                  <p class="font-semibold text-lg text-gray-900">{Number(venta.monto_total || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-600">Efectivo</p>
-                  <p class="font-medium text-gray-900">{venta.monto_pagado_efectivo.toFixed(2)}</p>
+                  <p class="font-medium text-gray-900">{Number(venta.monto_pagado_efectivo || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-600">QR</p>
-                  <p class="font-medium text-gray-900">{venta.monto_pagado_qr.toFixed(2)}</p>
+                  <p class="font-medium text-gray-900">{Number(venta.monto_pagado_qr || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-600">Ganancia</p>
-                  <p class="font-medium text-success-600">{calcularGananciaVenta(venta).toFixed(2)}</p>
+                  <p class="font-medium text-success-600">{Number(calcularGananciaVenta(venta) || 0).toFixed(2)}</p>
                 </div>
               </div>
 
@@ -459,7 +481,7 @@
                               <span class="text-gray-500">x{detalle.cantidad}</span>
                               {#if detalle.descuento_aplicado > 0}
                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
-                                  -{detalle.porcentaje_descuento.toFixed(0)}%
+                                  -{Number(detalle.porcentaje_descuento || 0).toFixed(0)}%
                                 </span>
                               {/if}
                             </div>
@@ -469,10 +491,10 @@
                           </div>
                           <div class="text-right ml-4">
                             {#if detalle.descuento_aplicado > 0}
-                              <div class="text-xs text-gray-400 line-through">{(detalle.precio_original || detalle.precio_venta_unitario).toFixed(2)}</div>
+                              <div class="text-xs text-gray-400 line-through">{Number(detalle.precio_original || detalle.precio_venta_unitario || 0).toFixed(2)}</div>
                             {/if}
-                            <span class="text-gray-600">{detalle.precio_venta_unitario.toFixed(2)} c/u</span>
-                            <span class="font-medium ml-2">{detalle.total.toFixed(2)}</span>
+                            <span class="text-gray-600">{Number(detalle.precio_venta_unitario || 0).toFixed(2)} c/u</span>
+                            <span class="font-medium ml-2">{Number(detalle.total || 0).toFixed(2)}</span>
                           </div>
                         </div>
                       {/each}
