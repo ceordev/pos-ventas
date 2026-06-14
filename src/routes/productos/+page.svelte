@@ -10,7 +10,10 @@
     AlertTriangle,
     Filter,
     X,
-    PackageCheck
+    PackageCheck,
+    ChevronUp,
+    ChevronDown,
+    ArrowUpDown
   } from 'lucide-svelte';
   import ProductoModal from '$lib/components/ProductoModal.svelte';
   import StockModal from '$lib/components/StockModal.svelte';
@@ -24,6 +27,7 @@
   // filteredProductos removed
   let searchTerm = '';
   let selectedCategory: number | null = null;
+  let selectedEstado: string | null = null;
   let showModal = false;
   let showStockModal = false;
   let showStockHistoryModal = false;
@@ -36,6 +40,18 @@
   let page = 1;
   const PAGE_SIZE = 10;
   let hasMore = true;
+  let sortBy = 'nombre';
+  let sortOrder = 'asc';
+
+  function toggleSort(field: string) {
+    if (sortBy === field) {
+      sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = field;
+      sortOrder = 'asc';
+    }
+    loadProductos(1, false);
+  }
   let loadingMore = false;
   let observer: IntersectionObserver;
   let sentinel: HTMLElement;
@@ -91,8 +107,16 @@
           *,
           categorias(id, nombre)
         `, { count: 'exact' })
-        .order('nombre')
         .eq('activo', true); // Filter by active products
+
+      if (sortBy === 'nombre') {
+        query = query.order('nombre', { ascending: sortOrder === 'asc' });
+      } else if (sortBy === 'estado') {
+        // Sort by stock to group state visually (0 = sin stock, < 10 = poco stock, etc.)
+        query = query.order('stock', { ascending: sortOrder === 'asc' });
+      } else {
+        query = query.order('nombre', { ascending: true });
+      }
 
       if (searchTerm) {
         query = query.or(`nombre.ilike.%${searchTerm}%,codigo_barras.ilike.%${searchTerm}%`);
@@ -100,6 +124,14 @@
       
       if (selectedCategory) {
         query = query.eq('id_categoria', selectedCategory);
+      }
+
+      if (selectedEstado === 'sin_stock') {
+        query = query.lte('stock', 0);
+      } else if (selectedEstado === 'stock_bajo') {
+        query = query.gt('stock', 0).lte('stock', 5);
+      } else if (selectedEstado === 'en_stock') {
+        query = query.gt('stock', 5);
       }
 
       const { data, error: dbError, count } = await query.range(from, to);
@@ -231,6 +263,7 @@
   function clearFilters() {
     searchTerm = '';
     selectedCategory = null;
+    selectedEstado = null;
     loadProductos(1, false);
   }
 
@@ -304,9 +337,27 @@
             {/each}
           </select>
         </div>
+
+        <!-- Filtro por estado -->
+        <div class="sm:w-48">
+          <select 
+            class="input"
+            value={selectedEstado || ''}
+            on:change={(e) => {
+              const target = e.target as HTMLSelectElement;
+              selectedEstado = target.value || null;
+              loadProductos(1, false);
+            }}
+          >
+            <option value="">Todos los estados</option>
+            <option value="en_stock">En stock</option>
+            <option value="stock_bajo">Stock bajo</option>
+            <option value="sin_stock">Sin stock</option>
+          </select>
+        </div>
         
         <!-- Limpiar filtros -->
-        {#if searchTerm || selectedCategory !== null}
+        {#if searchTerm || selectedCategory !== null || selectedEstado !== null}
           <button class="btn-secondary" on:click={clearFilters}>
             <X class="h-4 w-4 mr-2" />
             Limpiar
@@ -352,8 +403,19 @@
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Producto
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group" on:click={() => toggleSort('nombre')}>
+                  <div class="flex items-center">
+                    Producto
+                    {#if sortBy === 'nombre'}
+                      {#if sortOrder === 'asc'}
+                        <ChevronUp class="h-4 w-4 ml-1 text-primary-600" />
+                      {:else}
+                        <ChevronDown class="h-4 w-4 ml-1 text-primary-600" />
+                      {/if}
+                    {:else}
+                      <ArrowUpDown class="h-4 w-4 ml-1 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/if}
+                  </div>
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Categoría
@@ -364,8 +426,19 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Stock
                 </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group" on:click={() => toggleSort('estado')}>
+                  <div class="flex items-center">
+                    Estado
+                    {#if sortBy === 'estado'}
+                      {#if sortOrder === 'asc'}
+                        <ChevronUp class="h-4 w-4 ml-1 text-primary-600" />
+                      {:else}
+                        <ChevronDown class="h-4 w-4 ml-1 text-primary-600" />
+                      {/if}
+                    {:else}
+                      <ArrowUpDown class="h-4 w-4 ml-1 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/if}
+                  </div>
                 </th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
