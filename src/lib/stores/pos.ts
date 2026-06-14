@@ -14,6 +14,7 @@ export interface Product {
 }
 
 export interface CartItem {
+    cartItemId: string;
     product: Product;
     quantity: number;
     subtotal: number;
@@ -21,6 +22,7 @@ export interface CartItem {
     descuento_aplicado: number;
     porcentaje_descuento: number;
     observacion?: string;
+    talla?: string | null;
 }
 
 export interface Category {
@@ -102,8 +104,9 @@ class POSService {
 
             if (error) throw error;
 
-            const productsWithStock = data?.map(product => ({
+            const productsWithStock: Product[] = data?.map(product => ({
                 ...product,
+                precio_venta: product.precio_venta || 0,
                 categoria: (product as any).categorias?.nombre,
                 // Stock is now a direct property, no mapping needed
                 stock: product.stock || 0
@@ -194,22 +197,25 @@ class POSService {
         }
     }
 
-    addToCart(product: Product, quantity: number = 1) {
+    addToCart(product: Product, quantity: number = 1, talla?: string) {
+        const cartItemId = talla ? `${product.id}-${talla}` : `${product.id}-none`;
         cart.update(currentCart => {
-            const existingItem = currentCart.find(item => item.product.id === product.id);
+            const existingItem = currentCart.find(item => item.cartItemId === cartItemId);
 
             if (existingItem) {
                 existingItem.quantity += quantity;
                 existingItem.subtotal = existingItem.quantity * (existingItem.precio_original - existingItem.descuento_aplicado);
             } else {
                 currentCart.push({
+                    cartItemId,
                     product,
                     quantity,
                     subtotal: quantity * product.precio_venta,
                     precio_original: product.precio_venta,
                     descuento_aplicado: 0,
                     porcentaje_descuento: 0,
-                    observacion: ''
+                    observacion: '',
+                    talla: talla || null
                 });
             }
 
@@ -217,20 +223,20 @@ class POSService {
         });
     }
 
-    removeFromCart(productId: number) {
+    removeFromCart(cartItemId: string) {
         cart.update(currentCart => {
-            return currentCart.filter(item => item.product.id !== productId);
+            return currentCart.filter(item => item.cartItemId !== cartItemId);
         });
     }
 
-    updateCartItemQuantity(productId: number, quantity: number) {
+    updateCartItemQuantity(cartItemId: string, quantity: number) {
         if (quantity <= 0) {
-            this.removeFromCart(productId);
+            this.removeFromCart(cartItemId);
             return;
         }
 
         cart.update(currentCart => {
-            const item = currentCart.find(item => item.product.id === productId);
+            const item = currentCart.find(item => item.cartItemId === cartItemId);
             if (item) {
                 item.quantity = quantity;
                 item.subtotal = quantity * (item.precio_original - item.descuento_aplicado);
@@ -239,9 +245,9 @@ class POSService {
         });
     }
 
-    applyDiscount(productId: number, descuento: number) {
+    applyDiscount(cartItemId: string, descuento: number) {
         cart.update(currentCart => {
-            const item = currentCart.find(item => item.product.id === productId);
+            const item = currentCart.find(item => item.cartItemId === cartItemId);
             if (item) {
                 // Validar que el descuento no sea mayor al precio original
                 const descuentoValidado = Math.min(Math.max(0, descuento), item.precio_original);
@@ -255,9 +261,9 @@ class POSService {
         });
     }
 
-    updateCartItemObservation(productId: number, observacion: string) {
+    updateCartItemObservation(cartItemId: string, observacion: string) {
         cart.update(currentCart => {
-            const item = currentCart.find(item => item.product.id === productId);
+            const item = currentCart.find(item => item.cartItemId === cartItemId);
             if (item) {
                 item.observacion = observacion;
             }
@@ -286,7 +292,8 @@ class POSService {
                 precio_original: item.precio_original,
                 descuento_aplicado: item.descuento_aplicado,
                 porcentaje_descuento: item.porcentaje_descuento,
-                observacion: item.observacion || null
+                observacion: item.observacion || null,
+                talla: item.talla || null
             }));
 
             const { data, error } = await supabase.rpc('registrar_venta', {

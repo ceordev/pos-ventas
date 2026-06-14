@@ -300,7 +300,7 @@
         
         {#if fechaFiltro}
           <span class="text-sm text-gray-600">
-            Filtrado por: {new Date(fechaFiltro).toLocaleDateString('es-ES')}
+            Filtrado por: {fechaFiltro.split('-').reverse().join('/')}
           </span>
         {/if}
       </div>

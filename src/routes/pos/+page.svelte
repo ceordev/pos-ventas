@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
+  import { supabase } from '$lib/supabase';
   import { 
     posService, 
     products, 
@@ -30,6 +31,9 @@
   let selectedItemForDiscount: any = null;
   let loading = true;
   let searchTimeout: any;
+  let showSizeModal = false;
+  let selectedProductForSize: any = null;
+  let availableSizes: any[] = [];
 
   // Infinite Scroll Observer
   let observer: IntersectionObserver;
@@ -70,12 +74,33 @@
     ]);
   }
 
-  function handleProductClick(product: any) {
+  async function handleProductClick(product: any) {
     if (product.stock <= 0) {
       alert('Producto sin stock disponible');
       return;
     }
-    posService.addToCart(product);
+
+    const { data: tallas } = await supabase.from('producto_tallas').select('*').eq('id_producto', product.id);
+
+    if (tallas && tallas.length > 0) {
+      const tallasConStock = tallas.filter(t => t.stock > 0);
+      if (tallasConStock.length === 0) {
+        alert('Este producto tiene tallas pero ninguna tiene stock disponible');
+        return;
+      }
+      selectedProductForSize = product;
+      availableSizes = tallasConStock;
+      showSizeModal = true;
+    } else {
+      posService.addToCart(product);
+    }
+  }
+
+  function handleSizeSelected(talla: any) {
+    posService.addToCart(selectedProductForSize, 1, talla.talla);
+    showSizeModal = false;
+    selectedProductForSize = null;
+    availableSizes = [];
   }
 
   function updateQuantity(productId: number, quantity: number) {
@@ -375,7 +400,7 @@
                 <div class="p-3 bg-gray-50 rounded-lg">
                   <div class="flex items-start justify-between mb-2">
                     <div class="flex-1">
-                      <h4 class="font-medium text-sm">{item.product.nombre}</h4>
+                      <h4 class="font-medium text-sm">{item.product.nombre} {#if item.talla}<span class="text-xs bg-gray-200 px-2 py-0.5 rounded ml-1">Talla: {item.talla}</span>{/if}</h4>
                       <div class="text-xs text-gray-600 mt-1">
                         {#if item.descuento_aplicado > 0}
                           <p class="line-through text-gray-400">Precio: {item.precio_original.toFixed(2)}</p>
@@ -388,57 +413,66 @@
                     
                     <button
                       class="text-danger-600 hover:text-danger-700 ml-2"
-                      on:click={() => removeFromCart(item.product.id)}
+                      on:click={() => removeFromCart(item.cartItemId)}
                     >
                       <X class="h-4 w-4" />
                     </button>
                   </div>
                   
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                      <button
-                        class="w-7 h-7 rounded-full flex-shrink-0 bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
-                        on:click={() => updateQuantity(item.product.id, item.quantity - 1)}
-                      >
-                        <Minus class="h-3 w-3" />
-                      </button>
+                  <div class="flex flex-col space-y-3 mt-2">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center space-x-2">
+                        <button
+                          class="w-7 h-7 rounded-full flex-shrink-0 bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                          on:click={() => updateQuantity(item.cartItemId, item.quantity - 1)}
+                        >
+                          <Minus class="h-3 w-3" />
+                        </button>
+                        
+                        <input 
+                          type="number"
+                          min="1"
+                          max={item.product.stock || 1}
+                          value={item.quantity}
+                          on:change={(e) => {
+                             const target = e.target as HTMLInputElement;
+                             let newQty = parseInt(target.value);
+                             if (isNaN(newQty) || newQty < 1) newQty = 1;
+                             const maxStock = item.product.stock || 1;
+                             if (newQty > maxStock) newQty = maxStock;
+                             target.value = newQty.toString();
+                             updateQuantity(item.cartItemId, newQty);
+                          }}
+                          class="w-12 text-center text-sm font-medium border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 py-1"
+                        />
+                        
+                        <button
+                          class="w-7 h-7 rounded-full flex-shrink-0 bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                          on:click={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                          disabled={item.quantity >= (item.product.stock || 0)}
+                        >
+                          <Plus class="h-3 w-3" />
+                        </button>
+                        
+                        <button
+                          class="ml-2 p-1 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded"
+                          on:click={() => openDiscountModal(item)}
+                          title="Aplicar descuento"
+                        >
+                          <Tag class="h-4 w-4" />
+                        </button>
+                      </div>
                       
-                      <input 
-                        type="number"
-                        min="1"
-                        max={item.product.stock || 1}
-                        value={item.quantity}
-                        on:change={(e) => {
-                           const target = e.target as HTMLInputElement;
-                           let newQty = parseInt(target.value);
-                           if (isNaN(newQty) || newQty < 1) newQty = 1;
-                           const maxStock = item.product.stock || 1;
-                           if (newQty > maxStock) newQty = maxStock;
-                           target.value = newQty.toString();
-                           updateQuantity(item.product.id, newQty);
-                        }}
-                        class="w-12 text-center text-sm font-medium border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 py-1"
-                      />
-                      
-                      <button
-                        class="w-7 h-7 rounded-full flex-shrink-0 bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
-                        on:click={() => updateQuantity(item.product.id, item.quantity + 1)}
-                        disabled={item.quantity >= (item.product.stock || 0)}
-                      >
-                        <Plus class="h-3 w-3" />
-                      </button>
-                      
-                      <button
-                        class="ml-2 p-1 text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded"
-                        on:click={() => openDiscountModal(item)}
-                        title="Aplicar descuento"
-                      >
-                        <Tag class="h-4 w-4" />
-                      </button>
+                      <div class="text-right">
+                        <p class="font-bold text-sm">{item.subtotal.toFixed(2)}</p>
+                        {#if item.descuento_aplicado > 0}
+                          <p class="text-xs text-green-600">Ahorras: {(item.descuento_aplicado * item.quantity).toFixed(2)}</p>
+                        {/if}
+                      </div>
                     </div>
                     
-                    <!-- Campo de observación -->
-                    <div class="mt-2">
+                    <!-- Campo de observación abajo para más espacio en móviles -->
+                    <div class="w-full">
                       <input
                         type="text"
                         placeholder="Observación (ej: talla 6, color azul)"
@@ -446,19 +480,12 @@
                         on:input={(e) => {
                           const target = e.target as HTMLInputElement;
                           if (target) {
-                            posService.updateCartItemObservation(item.product.id, target.value);
+                            posService.updateCartItemObservation(item.cartItemId, target.value);
                           }
                         }}
-                        class="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                        class="w-full text-xs px-3 py-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 transition-colors placeholder-gray-400"
                         maxlength="100"
                       />
-                    </div>
-                    
-                    <div class="text-right">
-                      <p class="font-bold text-sm">{item.subtotal.toFixed(2)}</p>
-                      {#if item.descuento_aplicado > 0}
-                        <p class="text-xs text-green-600">Ahorras: {(item.descuento_aplicado * item.quantity).toFixed(2)}</p>
-                      {/if}
                     </div>
                   </div>
                 </div>
@@ -521,6 +548,33 @@
       on:close={() => showCierreModal = false}
       on:success={handleCierreCompleta}
     />
+  {/if}
+
+  {#if showSizeModal}
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
+        <div class="flex items-center justify-between p-4 border-b">
+          <h3 class="text-lg font-medium">Seleccionar Talla</h3>
+          <button class="text-gray-400 hover:text-gray-600" on:click={() => showSizeModal = false}>
+            <X class="h-5 w-5" />
+          </button>
+        </div>
+        <div class="p-4">
+          <p class="mb-4 text-sm text-gray-600">Selecciona la talla para <strong>{selectedProductForSize?.nombre}</strong>:</p>
+          <div class="grid grid-cols-2 gap-3">
+            {#each availableSizes as talla}
+              <button
+                class="border rounded-lg p-3 text-center hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                on:click={() => handleSizeSelected(talla)}
+              >
+                <div class="font-bold text-lg">{talla.talla}</div>
+                <div class="text-xs text-gray-500">Stock: {talla.stock}</div>
+              </button>
+            {/each}
+          </div>
+        </div>
+      </div>
+    </div>
   {/if}
 
   <DiscountModal

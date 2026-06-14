@@ -11,27 +11,59 @@
 
   let loading = false;
   let error = '';
+  let tallas: any[] = [];
+  let selectedTalla = '';
   let stockActual = 0;
   let cantidadAgregar = '';
   let cantidadQuitar = '';
   let operacion = 'agregar'; // 'agregar' o 'quitar'
   let motivo = '';
+  let esNuevaTalla = false;
+  let nuevaTallaInput = '';
 
   // Reactive calculations
-  $: stockFinal = operacion === 'agregar' 
+  
+  $: {
+    if (esNuevaTalla) {
+      stockActual = 0;
+    } else if (tallas.length > 0 && selectedTalla) {
+      const t = tallas.find(x => x.talla === selectedTalla);
+      stockActual = t ? t.stock : 0;
+    } else if (producto && tallas.length === 0) {
+      stockActual = producto.stock || 0;
+    }
+  }
+  
+  $: stockFinal = operacion === 'agregar'
     ? stockActual + (parseFloat(cantidadAgregar) || 0)
     : stockActual - (parseFloat(cantidadQuitar) || 0);
 
   $: stockFinalValido = stockFinal >= 0;
 
   // Initialize when modal opens
+  
+  async function loadTallas(productId: number) {
+    const { data } = await supabase.from('producto_tallas').select('*').eq('id_producto', productId);
+    if (data && data.length > 0) {
+      tallas = data;
+      selectedTalla = data[0].talla;
+    } else {
+      tallas = [];
+      selectedTalla = '';
+    }
+  }
+
   $: if (show && producto) {
+    loadTallas(producto.id);
     stockActual = producto.stock || 0;
+
     cantidadAgregar = '';
     cantidadQuitar = '';
     operacion = 'agregar';
     motivo = '';
     error = '';
+    esNuevaTalla = false;
+    nuevaTallaInput = '';
   }
 
   function close() {
@@ -40,11 +72,15 @@
   }
 
   function resetForm() {
+    tallas = [];
+    selectedTalla = '';
     cantidadAgregar = '';
     cantidadQuitar = '';
     operacion = 'agregar';
     motivo = '';
     error = '';
+    esNuevaTalla = false;
+    nuevaTallaInput = '';
   }
 
   async function handleSubmit() {
@@ -58,12 +94,30 @@
         ? parseFloat(cantidadAgregar) 
         : parseFloat(cantidadQuitar);
 
+      let tallaParaActualizar = selectedTalla;
+      
+      if (esNuevaTalla && nuevaTallaInput.trim()) {
+        const tallaNombre = nuevaTallaInput.trim();
+        // Insert new talla with 0 stock
+        const { error: insertError } = await supabase.from('producto_tallas').insert({
+           id_producto: producto.id,
+           talla: tallaNombre,
+           stock: 0
+        });
+        
+        if (insertError) {
+          throw new Error('Error al crear la nueva talla. Puede que ya exista.');
+        }
+        tallaParaActualizar = tallaNombre;
+      }
+
       // Usar RPC para actualización atómica e historial
       const { error: rpcError } = await supabase.rpc('actualizar_stock', {
         _id_producto: producto.id,
         _cantidad: cantidad,
         _tipo_movimiento: operacion === 'agregar' ? 'ENTRADA' : 'SALIDA',
         _motivo: motivo || (operacion === 'agregar' ? 'Ingreso de stock' : 'Retiro de stock'),
+        ...((tallas.length > 0 || esNuevaTalla) && tallaParaActualizar ? { _talla: tallaParaActualizar } : {}),
         _id_usuario: $authStore.profile?.id
       });
 
@@ -104,6 +158,16 @@
         error = 'No puede quitar más stock del disponible';
         return false;
       }
+    }
+
+    if (esNuevaTalla && !nuevaTallaInput.trim()) {
+      error = 'Debe ingresar el nombre de la nueva talla';
+      return false;
+    }
+
+    if (!esNuevaTalla && tallas.length > 0 && !selectedTalla) {
+      error = 'Debe seleccionar una talla';
+      return false;
     }
 
     if (!stockFinalValido) {
@@ -176,10 +240,56 @@
             {/if}
             <div>
               <h3 class="font-medium text-gray-900">{producto?.nombre}</h3>
-              <p class="text-sm text-gray-600">Stock actual: <span class="font-semibold">{stockActual}</span></p>
+              <p class="text-sm text-gray-600">Stock global: <span class="font-semibold">{producto?.stock || 0}</span></p>
             </div>
           </div>
         </div>
+
+        {#if tallas.length > 0 || esNuevaTalla}
+        <div class="mb-6">
+          <div class="flex justify-between items-center mb-2">
+            <label class="block text-sm font-medium text-gray-700">
+              {esNuevaTalla ? 'Nueva Talla' : 'Seleccionar Talla'}
+            </label>
+            <button 
+              type="button" 
+              class="text-sm text-primary-600 hover:text-primary-700 font-medium" 
+              on:click={() => {esNuevaTalla = !esNuevaTalla; error = '';}}
+            >
+              {esNuevaTalla ? 'Seleccionar existente' : '+ Nueva Talla'}
+            </button>
+          </div>
+          
+          {#if esNuevaTalla}
+            <input 
+              type="text" 
+              bind:value={nuevaTallaInput} 
+              placeholder="Ej: 42, L, XL" 
+              class="input" 
+              disabled={loading} 
+              required={esNuevaTalla}
+            />
+            <p class="text-xs text-gray-500 mt-1">La talla iniciará con stock 0 y se le agregará/quitará la cantidad indicada.</p>
+          {:else}
+            <select bind:value={selectedTalla} class="input" disabled={loading}>
+              {#each tallas as t}
+                <option value={t.talla}>Talla {t.talla} (Stock actual: {t.stock})</option>
+              {/each}
+            </select>
+          {/if}
+        </div>
+        {:else}
+        <div class="mb-6">
+           <button 
+            type="button" 
+            class="w-full flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors" 
+            on:click={() => esNuevaTalla = true}
+           >
+              + Crear Talla
+           </button>
+           <p class="text-xs text-center text-gray-500 mt-2">Este producto no tiene tallas detalladas actualmente.</p>
+        </div>
+        {/if}
 
         <!-- Tipo de operación -->
         <div class="mb-6">
@@ -201,12 +311,15 @@
               type="button"
               class="p-3 border rounded-lg text-center transition-colors {operacion === 'quitar' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-300 hover:border-gray-400'}"
               on:click={() => operacion = 'quitar'}
-              disabled={loading}
+              disabled={loading || (esNuevaTalla)}
             >
               <Minus class="h-5 w-5 mx-auto mb-1" />
               <span class="text-sm font-medium">Quitar Stock</span>
             </button>
           </div>
+          {#if operacion === 'quitar' && esNuevaTalla}
+            <p class="text-xs text-danger-500 mt-2">No puede quitar stock de una talla nueva.</p>
+          {/if}
         </div>
 
         <!-- Cantidad -->
@@ -224,7 +337,7 @@
             step="0.01"
             placeholder="0"
             class="input"
-            disabled={loading}
+            disabled={loading || (operacion === 'quitar' && esNuevaTalla)}
             required
           />
         </div>
@@ -247,7 +360,7 @@
         <!-- Resumen -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div class="flex justify-between items-center">
-            <span class="text-sm text-blue-700">Stock actual:</span>
+            <span class="text-sm text-blue-700">Stock {esNuevaTalla || tallas.length > 0 ? 'de la talla' : 'actual'}:</span>
             <span class="font-medium text-blue-900">{stockActual}</span>
           </div>
           <div class="flex justify-between items-center">
@@ -289,7 +402,7 @@
           <button
             type="submit"
             class="btn-primary flex-1"
-            disabled={loading || !stockFinalValido}
+            disabled={loading || !stockFinalValido || (operacion === 'quitar' && esNuevaTalla)}
           >
             {#if loading}
               <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

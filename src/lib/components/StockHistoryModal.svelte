@@ -145,6 +145,7 @@
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalle</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Talla</th>
                   <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
                   <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Saldo</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
@@ -166,6 +167,9 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate" title={mov.motivo}>
                       {mov.motivo || '-'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-medium">
+                      {mov.talla ? mov.talla : '-'}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium {mov.stock_nuevo > mov.stock_anterior ? 'text-green-600' : 'text-red-600'}">
                       {mov.stock_nuevo > mov.stock_anterior ? '+' : ''}{mov.cantidad}

@@ -3,104 +3,90 @@
  */
 
 // Zona horaria de Bolivia (UTC-4)
-const BOLIVIA_TIMEZONE = 'America/La_Paz';
+export const BOLIVIA_TIMEZONE = 'America/La_Paz';
 
 /**
  * Convierte una fecha a la zona horaria de Bolivia
+ * (Mantenemos la firma de la función para compatibilidad, pero un Date object
+ * en JS siempre es un instante en el tiempo universal. No debemos restar el Epoch.)
  * @param date - Fecha a convertir
- * @returns Fecha en zona horaria de Bolivia
+ * @returns La misma fecha (el formateo depende de toLocaleString)
  */
 export function toBoliviaTime(date: Date | string): Date {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
-
-  // Si la fecha ya está en UTC, convertir a Bolivia (UTC-4)
-  // Bolivia está 4 horas detrás de UTC
-  const boliviaOffset = -4 * 60; // -4 horas en minutos
-  
-  // Crear nueva fecha ajustando la zona horaria
-  const boliviaDate = new Date(dateObj.getTime() + (boliviaOffset * 60 * 1000));
-  
-  return boliviaDate;
+  return typeof date === 'string' ? new Date(date) : date;
 }
 
 /**
- * Obtiene la fecha actual en zona horaria de Bolivia
- * @returns Fecha actual en Bolivia
+ * Obtiene la fecha actual
  */
 export function getCurrentBoliviaTime(): Date {
-  return toBoliviaTime(new Date());
+  return new Date();
 }
 
 /**
- * Formatea una fecha para mostrar en la interfaz
- * @param date - Fecha a formatear
- * @param includeTime - Si incluir la hora
- * @returns Fecha formateada
+ * Formatea una fecha para mostrar en la interfaz en la zona horaria correcta
  */
 export function formatDate(date: Date | string, includeTime = true): string {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   
-  // La fecha viene en UTC desde la BD, convertir a Bolivia (UTC-4)
-  const boliviaOffset = -4 * 60 * 60 * 1000; // -4 horas en milisegundos
-  const boliviaDate = new Date(dateObj.getTime() + boliviaOffset);
-  
-  // Formatear fecha en español
-  const fechaStr = boliviaDate.toLocaleDateString('es-ES', {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: BOLIVIA_TIMEZONE,
     year: 'numeric',
     month: 'short',
     day: 'numeric'
-  });
+  };
   
   if (includeTime) {
-    // Formatear hora
-    const horaStr = boliviaDate.toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    return `${fechaStr}, ${horaStr}`;
+    options.hour = '2-digit';
+    options.minute = '2-digit';
   }
   
-  return fechaStr;
+  return dateObj.toLocaleString('es-ES', options);
 }
 
 /**
  * Obtiene el inicio del día en zona horaria de Bolivia
- * @param date - Fecha base
- * @returns Inicio del día (00:00:00)
  */
 export function getStartOfDay(date: Date = new Date()): Date {
-  const boliviaDate = toBoliviaTime(date);
-  const startOfDay = new Date(boliviaDate);
-  startOfDay.setHours(0, 0, 0, 0);
-  return startOfDay;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BOLIVIA_TIMEZONE,
+    year: 'numeric', month: 'numeric', day: 'numeric'
+  }).formatToParts(date);
+  
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const d = parts.find(p => p.type === 'day')?.value;
+  
+  // Creamos un string ISO con el offset de Bolivia (-04:00) a las 00:00:00
+  return new Date(`${y}-${m?.padStart(2, '0')}-${d?.padStart(2, '0')}T00:00:00-04:00`);
 }
 
 /**
  * Obtiene el fin del día en zona horaria de Bolivia
- * @param date - Fecha base
- * @returns Fin del día (23:59:59)
  */
 export function getEndOfDay(date: Date = new Date()): Date {
-  const boliviaDate = toBoliviaTime(date);
-  const endOfDay = new Date(boliviaDate);
-  endOfDay.setHours(23, 59, 59, 999);
-  return endOfDay;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BOLIVIA_TIMEZONE,
+    year: 'numeric', month: 'numeric', day: 'numeric'
+  }).formatToParts(date);
+  
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const d = parts.find(p => p.type === 'day')?.value;
+  
+  // Creamos un string ISO con el offset de Bolivia (-04:00) a las 23:59:59
+  return new Date(`${y}-${m?.padStart(2, '0')}-${d?.padStart(2, '0')}T23:59:59.999-04:00`);
 }
 
 /**
- * Convierte una fecha a ISO string en zona horaria de Bolivia
- * @param date - Fecha a convertir
- * @returns ISO string en zona horaria de Bolivia
+ * Convierte una fecha a ISO string
  */
 export function toBoliviaISOString(date: Date = new Date()): string {
-  const boliviaDate = toBoliviaTime(date);
-  return boliviaDate.toISOString();
+  return date.toISOString();
 }
 
 /**
- * Obtiene el rango de fechas para un día específico en Bolivia
- * @param date - Fecha del día
- * @returns Objeto con inicio y fin del día
+ * Obtiene el rango de fechas para un día específico
  */
 export function getDayRange(date: Date = new Date()) {
   return {
@@ -111,24 +97,25 @@ export function getDayRange(date: Date = new Date()) {
 
 /**
  * Verifica si una fecha es hoy en zona horaria de Bolivia
- * @param date - Fecha a verificar
- * @returns true si es hoy
  */
 export function isToday(date: Date | string): boolean {
-  const boliviaDate = toBoliviaTime(date);
-  const today = getCurrentBoliviaTime();
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const today = new Date();
   
-  return boliviaDate.toDateString() === today.toDateString();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: BOLIVIA_TIMEZONE,
+    year: 'numeric', month: 'numeric', day: 'numeric'
+  });
+  
+  return formatter.format(dateObj) === formatter.format(today);
 }
 
 /**
  * Obtiene el nombre del día en español
- * @param date - Fecha
- * @returns Nombre del día
  */
 export function getDayName(date: Date | string): string {
-  const boliviaDate = toBoliviaTime(date);
-  return boliviaDate.toLocaleDateString('es-ES', { 
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  return dateObj.toLocaleDateString('es-ES', { 
     weekday: 'long',
     timeZone: BOLIVIA_TIMEZONE
   });

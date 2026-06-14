@@ -11,6 +11,9 @@
 
   const dispatch = createEventDispatcher();
 
+  let detallarTallas = false;
+  let tallas: any[] = [];
+
   let form = {
     nombre: '',
     codigo_barras: '', // This now holds the description
@@ -43,6 +46,7 @@
         stock_inicial: producto.stock?.toString() || '0'
               };
         
+        // loadTallas removed to avoid loading sizes when editing
         // Forzar la selección de categoría después de un pequeño delay
         if (producto.id_categoria) {
           setTimeout(() => {
@@ -51,6 +55,8 @@
         }
     } else {
       isEditing = false;
+      detallarTallas = false;
+      tallas = [];
       form = {
         nombre: '',
         codigo_barras: '', // This now holds the description
@@ -82,6 +88,23 @@
     error = '';
     selectedFile = null;
     imagePreview = null;
+    detallarTallas = false;
+    tallas = [];
+  }
+
+  async function loadTallas(productId: number) {
+    if (!isEditing) return; // Only load if not editing, wait we don't even need to load if editing! Actually, we just don't need to load tallas when editing anymore.
+    // wait, actually we can just leave loadTallas empty or skip calling it. Let's just avoid loading it entirely to save a query.
+    // However, I will just leave the function as is, but not call it on edit, or just clear it.
+    // Let's just remove its logic.
+  }
+
+  function addTalla() {
+    tallas = [...tallas, { talla: '', stock: 0, codigo_barras: '' }];
+  }
+
+  function removeTalla(index: number) {
+    tallas = tallas.filter((_, i) => i !== index);
   }
 
   async function handleSubmit() {
@@ -138,6 +161,28 @@
       error = 'El stock inicial no puede ser negativo';
       return false;
     }
+
+    if (!isEditing && detallarTallas) {
+      if (tallas.length === 0) {
+        error = 'Debe agregar al menos una talla o desactivar "Detallar por tallas"';
+        return false;
+      }
+      
+      let sumaTallas = 0;
+      for (const t of tallas) {
+        if (!t.talla.trim()) {
+          error = 'Todas las tallas deben tener un nombre';
+          return false;
+        }
+        sumaTallas += parseFloat(t.stock) || 0;
+      }
+      
+      const stockTotal = parseFloat(form.stock_inicial) || 0;
+      if (sumaTallas !== stockTotal) {
+        error = `La suma del stock de las tallas (${sumaTallas}) debe ser igual al stock inicial total (${stockTotal})`;
+        return false;
+      }
+    }
     
     return true;
   }
@@ -187,6 +232,17 @@
       throw new Error(result.mensaje || 'Error al crear el producto');
     }
 
+    if (detallarTallas && tallas.length > 0) {
+      for (const t of tallas) {
+        await supabase.from('producto_tallas').insert({
+          id_producto: result.id_producto || result.producto_id || result.id,
+          talla: t.talla.trim(),
+          stock: parseFloat(t.stock) || 0,
+          codigo_barras: t.codigo_barras.trim() || null
+        });
+      }
+    }
+
     dispatch('success');
     close();
   }
@@ -214,6 +270,9 @@
       .eq('id', producto.id);
 
     if (dbError) throw dbError;
+
+    // Removed size syncing logic for edits as requested by user.
+    // Sizes are now exclusively managed in the StockModal.
   }
 
   function handleKeydown(event: KeyboardEvent) {
@@ -471,8 +530,58 @@
                   class="input"
                   disabled={loading}
                 />
-                <p class="text-xs text-gray-500 mt-1">Cantidad inicial en inventario</p>
+                <p class="text-xs text-gray-500 mt-1">Cantidad inicial en inventario global</p>
               </div>
+            {/if}
+
+            {#if !isEditing}
+            <div class="mt-4 border-t pt-4">
+              {#if !detallarTallas}
+                <button 
+                  type="button" 
+                  class="w-full flex items-center justify-center p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:border-primary-500 hover:text-primary-600 transition-colors mb-4"
+                  on:click={() => { detallarTallas = true; if(tallas.length === 0) addTalla(); }}
+                  disabled={loading}
+                >
+                  Agregar Tallas
+                </button>
+              {:else}
+                <div class="flex items-center justify-between mb-4">
+                  <h4 class="text-sm font-medium text-gray-700">Detalle de Tallas</h4>
+                  {#if !isEditing}
+                    <button 
+                      type="button" 
+                      class="text-xs text-danger-600 hover:text-danger-700 font-medium bg-danger-50 px-2 py-1 rounded"
+                      on:click={() => { detallarTallas = false; tallas = []; }}
+                      disabled={loading}
+                    >
+                      Quitar detalle
+                    </button>
+                  {/if}
+                </div>
+              {/if}
+
+              {#if detallarTallas}
+                <div class="space-y-3">
+                  {#each tallas as talla, i}
+                    <div class="flex items-center space-x-2">
+                      <input type="text" bind:value={talla.talla} placeholder="Talla" class="input flex-1" required disabled={loading} />
+                      
+                      <input type="number" bind:value={talla.stock} placeholder="Stock" min="0" class="input w-24" required disabled={loading} />
+
+                      <button type="button" class="p-2 text-danger-600 hover:bg-danger-50 rounded" on:click={() => removeTalla(i)} disabled={loading}>X</button>
+                    </div>
+                  {/each}
+                  
+                  <div class="text-sm font-medium px-1 flex justify-between { tallas.reduce((sum, t) => sum + (parseFloat(t.stock) || 0), 0) === (parseFloat(form.stock_inicial) || 0) ? 'text-green-600' : 'text-red-600' }">
+                    <span>Total detallado:</span>
+                    <span>{tallas.reduce((sum, t) => sum + (parseFloat(t.stock) || 0), 0)} / {form.stock_inicial || 0}</span>
+                  </div>
+
+                  <button type="button" class="text-sm text-primary-600 hover:text-primary-700 font-medium" on:click={addTalla} disabled={loading}>+ Agregar talla</button>
+                </div>
+              {/if}
+            </div>
             {/if}
 
             <div>
