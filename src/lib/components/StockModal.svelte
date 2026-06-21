@@ -21,6 +21,15 @@
   let esNuevaTalla = false;
   let nuevaTallaInput = '';
 
+  // Assign sizes state
+  let modoAsignacion = false;
+  let stockSinAsignar = 0;
+  let asignaciones = [{ talla: '', cantidad: 1 }];
+  let permitirAumento = false;
+  
+  $: totalAsignado = asignaciones.reduce((sum, a) => sum + (parseFloat(a.cantidad as any) || 0), 0);
+  $: asignacionValida = permitirAumento ? true : totalAsignado <= stockSinAsignar;
+
   // Reactive calculations
   
   $: {
@@ -45,9 +54,16 @@
   async function loadTallas(productId: number) {
     const { data } = await supabase.from('producto_tallas').select('*').eq('id_producto', productId);
     if (data && data.length > 0) {
+      const sumTallas = data.reduce((sum, t) => sum + (t.stock || 0), 0);
+      stockSinAsignar = (producto.stock || 0) - sumTallas;
+      
       tallas = data;
-      selectedTalla = data[0].talla;
+      if (stockSinAsignar > 0) {
+        tallas = [...data, { talla: 'SIN_TALLA', stock: stockSinAsignar }];
+      }
+      selectedTalla = tallas[0].talla;
     } else {
+      stockSinAsignar = producto.stock || 0;
       tallas = [];
       selectedTalla = '';
     }
@@ -64,6 +80,9 @@
     error = '';
     esNuevaTalla = false;
     nuevaTallaInput = '';
+    modoAsignacion = false;
+    asignaciones = [{ talla: '', cantidad: 1 }];
+    permitirAumento = false;
   }
 
   function close() {
@@ -81,20 +100,59 @@
     error = '';
     esNuevaTalla = false;
     nuevaTallaInput = '';
+    modoAsignacion = false;
+    asignaciones = [{ talla: '', cantidad: 1 }];
+    permitirAumento = false;
+  }
+
+  function addAsignacionRow() {
+    asignaciones = [...asignaciones, { talla: '', cantidad: 1 }];
+  }
+
+  function removeAsignacionRow(index: number) {
+    asignaciones = asignaciones.filter((_, i) => i !== index);
   }
 
   async function handleSubmit() {
-    if (!validateForm()) return;
+    if (!modoAsignacion && !validateForm()) return;
 
     loading = true;
     error = '';
 
     try {
+      if (modoAsignacion) {
+        const validAsignaciones = asignaciones.filter(a => a.talla.trim() && a.cantidad > 0);
+        if (validAsignaciones.length === 0) {
+          throw new Error('Debe agregar al menos una asignación válida con nombre de talla y cantidad.');
+        }
+        if (!permitirAumento && totalAsignado > stockSinAsignar) {
+          throw new Error('La cantidad total a asignar supera el stock sin asignar disponible.');
+        }
+        
+        const { error: rpcError } = await supabase.rpc('asignar_stock_a_tallas', {
+          _id_producto: producto.id,
+          _id_usuario: $authStore.profile?.id,
+          _asignaciones: validAsignaciones,
+          _permitir_aumento: permitirAumento
+        });
+        
+        if (rpcError) throw rpcError;
+        
+        let aumento = 0;
+        if (permitirAumento && totalAsignado > stockSinAsignar) {
+          aumento = totalAsignado - stockSinAsignar;
+        }
+        dispatch('saved', { nuevoStock: (producto.stock || 0) + aumento });
+        resetForm();
+        loading = false;
+        return;
+      }
+
       const cantidad = operacion === 'agregar' 
         ? parseFloat(cantidadAgregar) 
         : parseFloat(cantidadQuitar);
 
-      let tallaParaActualizar = selectedTalla;
+      let tallaParaActualizar = selectedTalla === 'SIN_TALLA' ? null : selectedTalla;
       
       if (esNuevaTalla && nuevaTallaInput.trim()) {
         const tallaNombre = nuevaTallaInput.trim();
@@ -245,6 +303,67 @@
           </div>
         </div>
 
+        {#if stockSinAsignar > 0}
+          <div class="flex border-b mb-6">
+            <button 
+              type="button"
+              class="px-4 py-2 text-sm font-medium border-b-2 {modoAsignacion ? 'border-transparent text-gray-500 hover:text-gray-700' : 'border-primary-500 text-primary-600'}"
+              on:click={() => modoAsignacion = false}
+            >
+              Operación Individual
+            </button>
+            <button 
+              type="button"
+              class="px-4 py-2 text-sm font-medium border-b-2 {modoAsignacion ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}"
+              on:click={() => modoAsignacion = true}
+            >
+              Distribuir Stock ({stockSinAsignar} sin asignar)
+            </button>
+          </div>
+        {/if}
+
+        {#if modoAsignacion}
+          <div class="mb-6">
+            <p class="text-sm text-gray-600 mb-4">Tienes <strong>{stockSinAsignar}</strong> unidades físicas en tu inventario sin una talla específica asignada. Usa este panel para distribuirlas en las tallas correctas.</p>
+            
+            <div class="space-y-3 mb-4">
+              {#each asignaciones as asignacion, i}
+                <div class="flex items-center space-x-2">
+                  <div class="flex-1">
+                    <input type="text" bind:value={asignacion.talla} placeholder="Nombre de talla (ej. 38, M)" class="input" required />
+                  </div>
+                  <div class="w-32">
+                    <input type="number" bind:value={asignacion.cantidad} min="1" class="input" required />
+                  </div>
+                  <button type="button" class="p-2 text-gray-400 hover:text-danger-600 transition-colors" on:click={() => removeAsignacionRow(i)}>
+                    <X class="h-5 w-5" />
+                  </button>
+                </div>
+              {/each}
+            </div>
+            
+            <button type="button" class="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center mb-6" on:click={addAsignacionRow}>
+              <Plus class="h-4 w-4 mr-1" /> Agregar otra talla
+            </button>
+
+            <div class="bg-gray-50 p-4 rounded-lg mb-4 border {asignacionValida ? 'border-gray-200' : 'border-danger-300'}">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium text-gray-700">Total a distribuir:</span>
+                <span class="font-bold {asignacionValida ? 'text-gray-900' : 'text-danger-600'}">{totalAsignado} / {stockSinAsignar}</span>
+              </div>
+              
+              <label class="flex items-start space-x-3 mt-4 pt-4 border-t border-gray-200 cursor-pointer">
+                <div class="flex items-center h-5">
+                  <input type="checkbox" bind:checked={permitirAumento} class="h-4 w-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500" />
+                </div>
+                <div class="text-sm">
+                  <span class="font-medium text-gray-900">Permitir aumentar stock global</span>
+                  <p class="text-gray-500">Si distribuyes más de {stockSinAsignar} unidades, el sistema añadirá la diferencia a tu inventario general automáticamente.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        {:else}
         {#if tallas.length > 0 || esNuevaTalla}
         <div class="mb-6">
           <div class="flex justify-between items-center mb-2">
@@ -273,7 +392,9 @@
           {:else}
             <select bind:value={selectedTalla} class="input" disabled={loading}>
               {#each tallas as t}
-                <option value={t.talla}>Talla {t.talla} (Stock actual: {t.stock})</option>
+                <option value={t.talla}>
+                  {t.talla === 'SIN_TALLA' ? 'Sin talla asignada' : `Talla ${t.talla}`} (Stock actual: {t.stock})
+                </option>
               {/each}
             </select>
           {/if}
@@ -383,6 +504,8 @@
           {/if}
         </div>
 
+        {/if} <!-- Fin de modoAsignacion -->
+
         {#if error}
           <div class="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-md">
             <p class="text-sm text-danger-700">{error}</p>
@@ -402,13 +525,13 @@
           <button
             type="submit"
             class="btn-primary flex-1"
-            disabled={loading || !stockFinalValido || (operacion === 'quitar' && esNuevaTalla)}
+            disabled={loading || (modoAsignacion ? !asignacionValida : !stockFinalValido) || (!modoAsignacion && operacion === 'quitar' && esNuevaTalla)}
           >
             {#if loading}
               <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
               Actualizando...
             {:else}
-              {operacion === 'agregar' ? 'Agregar' : 'Quitar'} Stock
+              {modoAsignacion ? 'Guardar Asignación' : (operacion === 'agregar' ? 'Agregar Stock' : 'Quitar Stock')}
             {/if}
           </button>
         </div>

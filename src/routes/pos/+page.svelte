@@ -34,6 +34,7 @@
   let showSizeModal = false;
   let selectedProductForSize: any = null;
   let availableSizes: any[] = [];
+  let showCartMobile = false;
 
   // Infinite Scroll Observer
   let observer: IntersectionObserver;
@@ -159,6 +160,7 @@
 
   function handleVentaCompleta() {
     showPagoModal = false;
+    showCartMobile = false;
     // El carrito se limpia automáticamente en el servicio
   }
 
@@ -216,21 +218,23 @@
     <!-- Header -->
     <header class="bg-white shadow-sm border-b">
       <div class="px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-4">
-            <h1 class="text-2xl font-bold text-gray-900">Punto de Venta</h1>
-            {#if $cajaAbierta}
-              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-success-100 text-success-800">
-                Caja Abierta - {$cajaAbierta.descripcion_caja}
-              </span>
-            {:else}
-              <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-danger-100 text-danger-800">
-                Caja Cerrada
-              </span>
-            {/if}
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-900">Punto de Venta</h1>
+            <div>
+              {#if $cajaAbierta}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-success-100 text-success-800">
+                  Caja Abierta - {$cajaAbierta.descripcion_caja}
+                </span>
+              {:else}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-danger-100 text-danger-800">
+                  Caja Cerrada
+                </span>
+              {/if}
+            </div>
           </div>
           
-          <div class="flex items-center space-x-3">
+          <div class="flex flex-wrap items-center gap-3 lg:justify-end">
             {#if $cajaAbierta}
               <button
                 class="btn-warning"
@@ -255,7 +259,7 @@
               Mi Historial
             </button>
             
-            <div class="text-right">
+            <div class="text-right hidden sm:block">
               <p class="text-sm text-gray-600">Cajero</p>
               <p class="font-medium">{$authStore.profile?.nombres}</p>
             </div>
@@ -367,7 +371,7 @@
 
 
       <!-- Panel Derecho - Carrito -->
-      <div class="w-80 lg:w-96 bg-white border-l flex flex-col">
+      <div class="{showCartMobile ? 'fixed inset-0 z-50' : 'hidden md:flex w-80 lg:w-96'} bg-white md:border-l flex flex-col">
         <!-- Header del carrito -->
         <div class="p-4 border-b">
           <div class="flex items-center justify-between">
@@ -375,14 +379,22 @@
               <ShoppingCart class="h-5 w-5 mr-2" />
               Carrito ({$cartItemCount})
             </h2>
-            {#if $cart.length > 0}
-              <button
-                class="text-sm text-danger-600 hover:text-danger-700"
-                on:click={() => posService.clearCart()}
+            <div class="flex items-center space-x-3">
+              {#if $cart.length > 0}
+                <button
+                  class="text-sm text-danger-600 hover:text-danger-700"
+                  on:click={() => posService.clearCart()}
+                >
+                  Limpiar
+                </button>
+              {/if}
+              <button 
+                class="md:hidden p-2 -mr-2 text-gray-500 hover:text-gray-700"
+                on:click={() => showCartMobile = false}
               >
-                Limpiar
+                <X class="h-6 w-6" />
               </button>
-            {/if}
+            </div>
           </div>
         </div>
 
@@ -518,6 +530,21 @@
       </div>
     </div>
   </div>
+
+  <!-- Floating Cart Button for Mobile -->
+  <button 
+    class="md:hidden fixed bottom-6 right-6 bg-primary-600 text-white rounded-full p-4 shadow-lg hover:bg-primary-700 z-40 flex items-center justify-center transition-transform hover:scale-105"
+    on:click={() => showCartMobile = true}
+  >
+    <div class="relative">
+      <ShoppingCart class="h-6 w-6" />
+      {#if $cartItemCount > 0}
+        <span class="absolute -top-3 -right-3 bg-danger-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center border-2 border-primary-600">
+          {$cartItemCount}
+        </span>
+      {/if}
+    </div>
+  </button>
 
   <!-- Modales -->
   {#if showAperturaModal}

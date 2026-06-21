@@ -105,9 +105,24 @@
         };
       });
 
+      let finalEfectivo = 0;
+      let finalQR = 0;
+
+      if (metodoPago === 'Efectivo') {
+        finalEfectivo = currentTotal;
+        finalQR = 0;
+      } else if (metodoPago === 'QR') {
+        finalEfectivo = 0;
+        finalQR = currentTotal;
+      } else if (metodoPago === 'Mixto') {
+        const qrInput = parseFloat(montoQR) || 0;
+        finalQR = Math.min(qrInput, currentTotal);
+        finalEfectivo = currentTotal - finalQR;
+      }
+
       const pagoData = {
-        monto_efectivo: metodoPago === 'Efectivo' || metodoPago === 'Mixto' ? parseFloat(montoEfectivo) || 0 : 0,
-        monto_qr: metodoPago === 'QR' || metodoPago === 'Mixto' ? parseFloat(montoQR) || 0 : 0,
+        monto_efectivo: finalEfectivo,
+        monto_qr: finalQR,
       };
 
       const result = await posService.processSale(
