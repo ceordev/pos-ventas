@@ -236,12 +236,14 @@
           
           <div class="flex flex-wrap items-center gap-3 lg:justify-end">
             {#if $cajaAbierta}
-              <button
-                class="btn-warning"
-                on:click={() => showCierreModal = true}
-              >
-                Cerrar Caja
-              </button>
+              {#if ['superadmin', 'administrador'].includes($authStore.profile?.role?.toLowerCase())}
+                <button
+                  class="btn-warning"
+                  on:click={() => showCierreModal = true}
+                >
+                  Cerrar Caja
+                </button>
+              {/if}
             {:else}
               <button
                 class="btn-primary"
